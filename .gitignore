@@ -1,0 +1,16 @@
+*.exe
+*.ll
+*.obj
+*.pdb
+
+**.exp
+tetroid.lib
+ols.json
+
+.vscode
+.idea
+
+# orca samples
+
+orca_output
+module.wasm
