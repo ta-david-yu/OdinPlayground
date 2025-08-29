@@ -54,6 +54,12 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
     ay := ay
     by := by
 
+    isTooSteep: bool = math.abs(ax - bx) < math.abs(ay - by)
+    if (isTooSteep) {
+        ax, ay = ay, ax
+        bx, by = by, bx
+    }
+
     if (ax > bx) {
         // Swap the points so the for-loop still runs through the x range
         ax, bx = bx, ax
@@ -63,7 +69,12 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
     for x := ax; x <= bx; x += 1 {
         t := f64(x - ax) / f64(bx - ax)
         y := math.round(f64(ay) + f64(by - ay) * t)
-        SetColor(image, color, cast(int) x, cast(int) y)
+
+        if (isTooSteep) {
+            SetColor(image, color, cast(int) y, cast(int) x)
+        } else {
+            SetColor(image, color, cast(int) x, cast(int) y)
+        }
     }
 }
 
