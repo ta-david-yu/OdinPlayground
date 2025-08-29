@@ -1,6 +1,10 @@
 package main
 
-import math "core:math"
+import "core:strings"
+import "core:fmt"
+import "core:math"
+import "core:os"
+import "core:bufio"
 import stbi "vendor:stb/image"
 
 WHITE :: [4]u8 {255, 255, 255, 255}
@@ -10,12 +14,51 @@ BLUE :: [4]u8 {0, 0, 255, 255}
 GREEN :: [4]u8 {0, 255, 0, 255}
 YELLOW :: [4]u8 {255, 200, 0, 255}
 
+Vector3 :: [3] f32
+
+Model::struct {
+    Positions: []Vector3,
+    Indices: []int
+}
+
+LoadModel::proc(filePath: string) -> (Model, os.Error) {
+    model: Model
+
+    file, error := os.open(filePath)
+    if error != os.ERROR_NONE {
+        fmt.printfln("Failed to open model file '%s': %v", filePath, error)
+        return model, error
+    }
+    defer os.close(file)
+    
+    fileReader: bufio.Reader
+    buffer: [1024]byte
+    bufio.reader_init_with_buf(&fileReader, os.stream_from_handle(file), buffer[:])
+    defer bufio.reader_destroy(&fileReader)
+
+    for {
+		// This will allocate a string because the line might go over the backing
+		// buffer and thus need to join things together
+        line, error := bufio.reader_read_string(&fileReader, '\n', context.allocator)
+        if (error != os.ERROR_NONE) {
+            break
+        }
+        defer delete(line, context.allocator)
+        line = strings.trim_right(line, "\r")
+
+        // Process line
+        fmt.print(line)
+    }
+
+    return model, os.ERROR_NONE
+}
+
 Image::struct {
     Pixels: []u8,
     Width, Height: int
 }
 
-AllocateImage::proc(width: int, height: int) -> Image {
+CreateImage::proc(width: int, height: int) -> Image {
     return Image {
         Pixels = make([]u8, width * height * 4), 
         Width = width,
@@ -80,7 +123,7 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
 }
 
 main::proc() {
-    image: Image = AllocateImage(64, 64);
+    image: Image = CreateImage(64, 64);
     defer FreeImage(&image);
     
     MakeImageMonoColor(image, BLACK)
@@ -98,6 +141,7 @@ main::proc() {
     SetColor(image, WHITE, bx, by)
     SetColor(image, WHITE, cx, cy)
 
-    //stbi.flip_vertically_on_write(true)
-	stbi.write_png("output_image.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
+    stbi.write_png("output_image.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
+
+    LoadModel("diablo3_pose.obj")
 }
