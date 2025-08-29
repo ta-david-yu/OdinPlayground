@@ -66,15 +66,16 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
         ay, by = by, ay
     }
     
+    y := f64(ay)
+    yOffset := f64(by - ay) / f64(bx - ax);
     for x := ax; x <= bx; x += 1 {
-        t := f64(x - ax) / f64(bx - ax)
-        y := math.round(f64(ay) + f64(by - ay) * t)
-
         if (isTooSteep) {
             SetColor(image, color, cast(int) y, cast(int) x)
         } else {
             SetColor(image, color, cast(int) x, cast(int) y)
         }
+
+        y += yOffset;
     }
 }
 
