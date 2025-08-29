@@ -48,8 +48,20 @@ SetColor::proc(image: Image, color: [4]u8, x, y: int) {
 }
 
 Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
-    for t: f64 = 0; t < 1.0; t += 0.02 {
-        x := math.round(f64(ax) + f64(bx - ax) * t)
+    // Make them mutable
+    ax := ax
+    bx := bx
+    ay := ay
+    by := by
+
+    if (ax > bx) {
+        // Swap the points so the for-loop still runs through the x range
+        ax, bx = bx, ax
+        ay, by = by, ay
+    }
+    
+    for x := ax; x <= bx; x += 1 {
+        t := f64(x - ax) / f64(bx - ax)
         y := math.round(f64(ay) + f64(by - ay) * t)
         SetColor(image, color, cast(int) x, cast(int) y)
     }
