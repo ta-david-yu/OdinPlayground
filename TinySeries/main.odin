@@ -11,6 +11,7 @@ import "core:bufio"
 import stbi "vendor:stb/image"
 
 WHITE :: [4]u8 {255, 255, 255, 255}
+GREY :: [4]u8 {128, 128, 128, 255}
 BLACK :: [4]u8 {0, 0, 0, 255}
 RED :: [4]u8 {255, 0, 0, 255}
 BLUE :: [4]u8 {0, 0, 255, 255}
@@ -189,9 +190,52 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
 }
 
 Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
-    Line(image, color, ax, ay, bx, by)
-    Line(image, color, bx, by, cx, cy)
-    Line(image, color, cx, cy, ax, ay)
+    ax := ax
+    ay := ay
+    bx := bx
+    by := by
+    cx := cx
+    cy := cy
+    
+    // Sort the vertcies in ascending (a is the lowest, c is the highest)
+    if ay > by {  
+        ax, bx = bx, ax
+        ay, by = by, ay
+    }
+    if ay > cy {
+        ax, cx = cx, ax
+        ay, cy = cy, ay
+    }
+    if by > cy {
+        bx, cx = cx, bx
+        by, cy = cy, by
+    }
+
+    for y in ay..=by {
+        x0 := getXOnLineFromY(ax, ay, cx, cy, y)
+        x1 := getXOnLineFromY(ax, ay, bx, by, y)
+        if x0 > x1 {
+            x0, x1 = x1, x0
+        }
+        for x in x0..=x1 {
+            SetColor(image, color, x, y)
+        }
+    }
+
+    for y in by..=cy {
+        x0 := getXOnLineFromY(ax, ay, cx, cy, y)
+        x1 := getXOnLineFromY(bx, by, cx, cy, y)
+        if x0 > x1 {
+            x0, x1 = x1, x0
+        }
+        for x in x0..=x1 {
+            SetColor(image, color, x, y)
+        }
+    }
+
+    getXOnLineFromY::proc(point1X, point1Y, point2X, point2Y, targetY: int) -> int {
+        return point1X + cast(int) math.round(f64(targetY - point1Y) * f64(point2X - point1X) / f64(point2Y - point1Y))
+    }
 }
 
 DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
