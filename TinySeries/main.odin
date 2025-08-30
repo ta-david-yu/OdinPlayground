@@ -169,6 +169,12 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
     }
 }
 
+Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
+    Line(image, color, ax, ay, bx, by)
+    Line(image, color, bx, by, cx, cy)
+    Line(image, color, cx, cy, ax, ay)
+}
+
 DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
 
     for i := 0; i < len(model.Indices); i += 3 {
@@ -193,21 +199,14 @@ DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
 }
 
 main::proc() {
-    // Line drawing
+    // Triangle drawing
     {
-        image: Image = CreateImage(64, 64);
+        image: Image = CreateImage(128, 128);
         defer FreeImage(&image);
         MakeImageMonoColor(image, BLACK)
-        ax, ay := 7, 3;
-        bx, by :=12,37;
-        cx, cy :=62,53;
-        Line(image, BLUE, ax, ay, bx, by)
-        Line(image, GREEN, cx, cy, bx, by)
-        Line(image, YELLOW, cx, cy, ax, ay)
-        Line(image, RED, ax, ay, cx, cy)
-        SetColor(image, WHITE, ax, ay)
-        SetColor(image, WHITE, bx, by)
-        SetColor(image, WHITE, cx, cy)
+        Triangle(image, RED, 7, 45, 35, 100, 45, 60);
+        Triangle(image, WHITE, 120, 35, 90, 5, 45, 110);
+        Triangle(image, GREEN, 115, 83, 80, 90, 85, 120);
         stbi.write_png("output_image.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 
