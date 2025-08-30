@@ -127,6 +127,10 @@ MakeImageMonoColor::proc(image: Image, color: [4]u8) {
 
 SetColor::proc(image: Image, color: [4]u8, x, y: int) {
     pixelIndex := ((image.Height - y) * image.Width + x) * 4
+    if (pixelIndex >= len(image.Pixels)) {
+        return
+    }
+
     image.Pixels[pixelIndex+0] = color[0]
     image.Pixels[pixelIndex+1] = color[1]
     image.Pixels[pixelIndex+2] = color[2]
@@ -165,6 +169,29 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
     }
 }
 
+DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
+
+    for i := 0; i < len(model.Indices); i += 3 {
+        v1 := transformCoordinate(model.Positions[model.Indices[i]], image)
+        v2 := transformCoordinate(model.Positions[model.Indices[i + 1]], image)
+        v3 := transformCoordinate(model.Positions[model.Indices[i + 2]], image)
+        
+        // Draw face edges
+        Line(image, color, v1[0], v1[1], v2[0], v2[1])
+        Line(image, color, v2[0], v2[1], v3[0], v3[1])
+        Line(image, color, v3[0], v3[1], v1[0], v1[1])
+
+        // Also draw white dots at the vertices
+        SetColor(image, WHITE, v1[0], v1[1])
+        SetColor(image, WHITE, v2[0], v2[1])
+        SetColor(image, WHITE, v3[0], v3[1])
+    }
+
+    transformCoordinate::proc(point: linalg.Vector3f32, image: Image) -> [2]int {
+        return [2]int { cast(int) math.round((point.x + 1) * f32(image.Width) / 2), cast(int) math.round((point.y + 1) * f32(image.Height) / 2) }
+    }
+}
+
 main::proc() {
     // Line drawing
     {
@@ -186,7 +213,14 @@ main::proc() {
 
     // Model wireframe (WIP)
     {
+        image: Image = CreateImage(800, 800);
+        defer FreeImage(&image);
+        MakeImageMonoColor(image, BLACK)
+
         model, error := LoadModel("diablo3_pose.obj")
         defer ReleaseModel(model)
+        DrawModelWireframe(image, model, RED)
+
+        stbi.write_png("diablo_wireframe.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 }
