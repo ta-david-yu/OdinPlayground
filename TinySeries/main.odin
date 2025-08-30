@@ -156,16 +156,35 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
         ay, by = by, ay
     }
     
-    y := f64(ay)
-    yOffset := f64(by - ay) / f64(bx - ax);
-    for x := ax; x <= bx; x += 1 {
-        if (isTooSteep) {
-            SetColor(image, color, cast(int) y, cast(int) x)
-        } else {
-            SetColor(image, color, cast(int) x, cast(int) y)
-        }
+    width := bx - ax;
+    height := by - ay;
+    derror := math.abs(height) * 2; // (height / width) * width * 2 => height * 2
 
-        y += yOffset;
+    error: f64 = 0;
+    y := ay;
+    if isTooSteep {
+        for x := ax; x <= bx; x += 1
+        {
+            SetColor(image, color, cast(int) y, cast(int) x)
+            error += f64(derror);
+            if (error > f64(width))  // 0.5 * width * 2 => width
+            {
+                y += (by > ay) ? 1 : -1;
+                error -= f64(width * 2); // 1.0 * width * 2 => width * 2
+            }
+        }
+    } 
+    else {
+        for x := ax; x <= bx; x += 1
+        {
+            SetColor(image, color, cast(int) x, cast(int) y)
+            error += f64(derror);
+            if (error > f64(width))  // 0.5 * width * 2 => width
+            {
+                y += (by > ay) ? 1 : -1;
+                error -= f64(width * 2); // 1.0 * width * 2 => width * 2
+            }
+        }
     }
 }
 
