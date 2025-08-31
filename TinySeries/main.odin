@@ -211,28 +211,31 @@ TriangleScanLine::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) 
         by, cy = cy, by
     }
 
-    for y in ay..=by {
-        x0 := getXOnLineFromY(ax, ay, cx, cy, y)
-        x1 := getXOnLineFromY(ax, ay, bx, by, y)
-        if x0 > x1 {
-            x0, x1 = x1, x0
-        }
-        for x in x0..=x1 {
-            SetColor(image, color, x, y)
-        }
-    }
-
-    for y in by..=cy {
-        x0 := getXOnLineFromY(ax, ay, cx, cy, y)
-        x1 := getXOnLineFromY(bx, by, cx, cy, y)
-        if x0 > x1 {
-            x0, x1 = x1, x0
-        }
-        for x in x0..=x1 {
-            SetColor(image, color, x, y)
+    if ay != by {
+        for y in ay..=by {
+            x0 := getXOnLineFromY(ax, ay, cx, cy, y)
+            x1 := getXOnLineFromY(ax, ay, bx, by, y)
+            if x0 > x1 {
+                x0, x1 = x1, x0
+            }
+            for x in x0..=x1 {
+                SetColor(image, color, x, y)
+            }
         }
     }
 
+    if by != cy {
+        for y in by..=cy {
+            x0 := getXOnLineFromY(ax, ay, cx, cy, y)
+            x1 := getXOnLineFromY(bx, by, cx, cy, y)
+            if x0 > x1 {
+                x0, x1 = x1, x0
+            }
+            for x in x0..=x1 {
+                SetColor(image, color, x, y)
+            }
+        }
+    }
     getXOnLineFromY::proc(point1X, point1Y, point2X, point2Y, targetY: int) -> int {
         return point1X + cast(int) math.round(f64(targetY - point1Y) * f64(point2X - point1X) / f64(point2Y - point1Y))
     }
