@@ -189,7 +189,7 @@ Line::proc(image: Image, color: [4]u8, ax, ay, bx, by: int) {
     }
 }
 
-Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
+TriangleScanLine::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
     ax := ax
     ay := ay
     bx := bx
@@ -235,6 +235,24 @@ Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
 
     getXOnLineFromY::proc(point1X, point1Y, point2X, point2Y, targetY: int) -> int {
         return point1X + cast(int) math.round(f64(targetY - point1Y) * f64(point2X - point1X) / f64(point2Y - point1Y))
+    }
+}
+
+Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
+    minX := math.min(ax, bx)
+    minX = math.min(minX, cx)
+    minY := math.min(ay, by)
+    minY = math.min(minY, cy)
+
+    maxX := math.max(ax, bx)
+    maxX = math.max(maxX, cx)
+    maxY := math.max(ay, by)
+    maxY = math.max(maxY, cy)
+
+    for x := minX; x <= maxX; x += 1 {
+        for y := minY; y <= maxY; y += 1 {
+            SetColor(image, color, x, y)
+        }
     }
 }
 
