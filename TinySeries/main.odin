@@ -252,11 +252,31 @@ Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
     maxY := math.max(ay, by)
     maxY = math.max(maxY, cy)
 
+    totalArea := SignedTriangleArea(cast(f32) ax, cast(f32) ay, cast(f32) bx, cast(f32) by, cast(f32) cx, cast(f32) cy)
+
     for x := minX; x <= maxX; x += 1 {
         for y := minY; y <= maxY; y += 1 {
+            // Here we want to use barycentric coordinate to determine if the pixel is inside the triangle.
+            // -> P = aA + bB + cC
+            // a, b, and c are proportional to the sub-triangle areas: Area(PBC), Area(PCA), and Area(PAB) 
+            // Therefore if any sub-triangle has a negative value, then the pixel is outside the triangle.
+            alpha := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) bx, cast(f32) by, cast(f32) cx, cast(f32) cy) / totalArea
+            beta := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) cx, cast(f32) cy, cast(f32) ax, cast(f32) ay) / totalArea
+            gamma := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) ax, cast(f32) ay, cast(f32) bx, cast(f32) by) / totalArea
+            if (alpha < 0 || beta < 0 || gamma < 0) {
+                // Discard the pixel since it's outside the triangle
+                continue
+            }
+
             SetColor(image, color, x, y)
         }
     }
+}
+
+SignedTriangleArea::proc(ax, ay, bx, by, cx, cy: f32) -> f32 {
+    return 0.5 * ((by - ay) * (bx + ax) +
+                  (cy - by) * (cx + bx) +
+                  (ay - cy) * (ax + cx))
 }
 
 DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
@@ -267,6 +287,7 @@ DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
         v3 := transformCoordinate(model.Positions[model.Indices[i + 2]], image)
         
         // Draw face edges
+        TriangleScanLine(image, color, v1[0], v1[1], v2[0], v2[1], v3[0], v3[1])
         Line(image, color, v1[0], v1[1], v2[0], v2[1])
         Line(image, color, v2[0], v2[1], v3[0], v3[1])
         Line(image, color, v3[0], v3[1], v1[0], v1[1])
