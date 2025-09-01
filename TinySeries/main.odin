@@ -254,6 +254,11 @@ Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
     maxY = math.max(maxY, cy)
 
     totalArea := SignedTriangleArea(cast(f32) ax, cast(f32) ay, cast(f32) bx, cast(f32) by, cast(f32) cx, cast(f32) cy)
+    if (totalArea < 1) {
+        // If the triangle covers less than one pixel (area<1) we will discard it.
+        // If the signed area is negative, it means the triangle is facing backward and we will discard it as well.
+        return
+    }
 
     for x := minX; x <= maxX; x += 1 {
         for y := minY; y <= maxY; y += 1 {
