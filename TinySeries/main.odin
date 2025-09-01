@@ -15,8 +15,11 @@ WHITE :: [4]u8 {255, 255, 255, 255}
 GREY :: [4]u8 {128, 128, 128, 255}
 BLACK :: [4]u8 {0, 0, 0, 255}
 RED :: [4]u8 {255, 0, 0, 255}
+RED_F32 :: [4]f32 {f32(RED[0]), f32(RED[1]), f32(RED[2]), f32(RED[3])}
 BLUE :: [4]u8 {0, 0, 255, 255}
+BLUE_F32 :: [4]f32 {f32(BLUE[0]), f32(BLUE[1]), f32(BLUE[2]), f32(BLUE[3])}
 GREEN :: [4]u8 {0, 255, 0, 255}
+GREEN_F32 :: [4]f32 {f32(GREEN[0]), f32(GREEN[1]), f32(GREEN[2]), f32(GREEN[3])}
 YELLOW :: [4]u8 {255, 200, 0, 255}
 
 Model::struct {
@@ -314,9 +317,52 @@ TriangleWithZAsGreyScale::proc(image: Image, ax, ay, az, bx, by, bz, cx, cy, cz:
             if !(alpha < 0.1 || beta < 0.1 || gamma < 0.1) {
                 continue
             }
-            
+
             z : u8 = u8((cast(f32) az * alpha) + (cast(f32) bz * beta) + (cast(f32) cz * gamma))
             SetColor(image, [4]u8 { z, z, z, 255 }, x, y)
+        }
+    }
+}
+
+TriangleWithVertexColorRGB::proc(image: Image, ax, ay, az, bx, by, bz, cx, cy, cz: int) {
+    minX := math.min(ax, bx)
+    minX = math.min(minX, cx)
+    minY := math.min(ay, by)
+    minY = math.min(minY, cy)
+
+    maxX := math.max(ax, bx)
+    maxX = math.max(maxX, cx)
+    maxY := math.max(ay, by)
+    maxY = math.max(maxY, cy)
+
+    totalArea := SignedTriangleArea(cast(f32) ax, cast(f32) ay, cast(f32) bx, cast(f32) by, cast(f32) cx, cast(f32) cy)
+    if (totalArea < 1) {
+        // If the triangle covers less than one pixel (area<1) we will discard it.
+        // If the signed area is negative, it means the triangle is facing backward and we will discard it as well.
+        return
+    }
+
+    for x := minX; x <= maxX; x += 1 {
+        for y := minY; y <= maxY; y += 1 {
+            // Here we want to use barycentric coordinate to determine if the pixel is inside the triangle.
+            // -> P = aA + bB + cC
+            // a, b, and c are proportional to the sub-triangle areas: Area(PBC), Area(PCA), and Area(PAB) 
+            // Therefore if any sub-triangle has a negative value, then the pixel is outside the triangle.
+            alpha := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) bx, cast(f32) by, cast(f32) cx, cast(f32) cy) / totalArea
+            beta := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) cx, cast(f32) cy, cast(f32) ax, cast(f32) ay) / totalArea
+            gamma := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) ax, cast(f32) ay, cast(f32) bx, cast(f32) by) / totalArea
+            if (alpha < 0 || beta < 0 || gamma < 0) {
+                // Discard the pixel since it's outside the triangle
+                continue
+            }
+
+            if !(alpha < 0.1 || beta < 0.1 || gamma < 0.1) {
+                continue
+            }
+            
+            colorf : [4]f32 = RED_F32 * alpha + GREEN_F32 * beta + BLUE_F32 * gamma;
+            color : [4]u8 = { cast(u8) colorf.r, cast(u8) colorf.g, cast(u8) colorf.b, cast(u8) colorf.a }
+            SetColor(image, color, x, y)
         }
     }
 }
@@ -376,13 +422,13 @@ main::proc() {
         stbi.write_png("output_image.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 
-    // Triangle drawing with grey scale
+    // Triangle drawing with vertex color interpolation
     {
         image: Image = CreateImage(64, 64);
         defer FreeImage(&image);
         MakeImageMonoColor(image, BLACK)
-        TriangleWithZAsGreyScale(image, ax=17, ay=4, az=13, bx=55, by=39, bz=128, cx=23, cy=59, cz=255)
-        stbi.write_png("grey_scale_triangle.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
+        TriangleWithVertexColorRGB(image, ax=17, ay=4, az=13, bx=55, by=39, bz=128, cx=23, cy=59, cz=255)
+        stbi.write_png("rgb_triangle.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 
     // Model wireframe (WIP)
