@@ -6,6 +6,7 @@ import "core:strconv"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:math/rand"
 import "core:os"
 import "core:bufio"
 import stbi "vendor:stb/image"
@@ -280,14 +281,12 @@ SignedTriangleArea::proc(ax, ay, bx, by, cx, cy: f32) -> f32 {
 }
 
 DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
-
     for i := 0; i < len(model.Indices); i += 3 {
         v1 := transformCoordinate(model.Positions[model.Indices[i]], image)
         v2 := transformCoordinate(model.Positions[model.Indices[i + 1]], image)
         v3 := transformCoordinate(model.Positions[model.Indices[i + 2]], image)
         
         // Draw face edges
-        TriangleScanLine(image, color, v1[0], v1[1], v2[0], v2[1], v3[0], v3[1])
         Line(image, color, v1[0], v1[1], v2[0], v2[1])
         Line(image, color, v2[0], v2[1], v3[0], v3[1])
         Line(image, color, v3[0], v3[1], v1[0], v1[1])
@@ -296,6 +295,21 @@ DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
         SetColor(image, WHITE, v1[0], v1[1])
         SetColor(image, WHITE, v2[0], v2[1])
         SetColor(image, WHITE, v3[0], v3[1])
+    }
+
+    transformCoordinate::proc(point: linalg.Vector3f32, image: Image) -> [2]int {
+        return [2]int { cast(int) math.round((point.x + 1) * f32(image.Width) / 2), cast(int) math.round((point.y + 1) * f32(image.Height) / 2) }
+    }
+}
+
+DrawModel::proc(image: Image, model:Model) {
+    for i := 0; i < len(model.Indices); i += 3 {
+        v1 := transformCoordinate(model.Positions[model.Indices[i]], image)
+        v2 := transformCoordinate(model.Positions[model.Indices[i + 1]], image)
+        v3 := transformCoordinate(model.Positions[model.Indices[i + 2]], image)
+        
+        color : [4]u8 = { cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), 255 }
+        Triangle(image, color, v1[0], v1[1], v2[0], v2[1], v3[0], v3[1])
     }
 
     transformCoordinate::proc(point: linalg.Vector3f32, image: Image) -> [2]int {
@@ -321,10 +335,10 @@ main::proc() {
         defer FreeImage(&image);
         MakeImageMonoColor(image, BLACK)
 
-        model, error := LoadModel("diablo3_pose.obj")
+        model, error := LoadModel("african_head.obj")
         defer ReleaseModel(model)
-        DrawModelWireframe(image, model, RED)
+        DrawModel(image, model)
 
-        stbi.write_png("diablo_wireframe.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
+        stbi.write_png("african_head.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 }
