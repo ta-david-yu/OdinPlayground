@@ -311,6 +311,10 @@ TriangleWithZAsGreyScale::proc(image: Image, ax, ay, az, bx, by, bz, cx, cy, cz:
                 continue
             }
 
+            if !(alpha < 0.1 || beta < 0.1 || gamma < 0.1) {
+                continue
+            }
+            
             z : u8 = u8((cast(f32) az * alpha) + (cast(f32) bz * beta) + (cast(f32) cz * gamma))
             SetColor(image, [4]u8 { z, z, z, 255 }, x, y)
         }
