@@ -279,6 +279,44 @@ Triangle::proc(image: Image, color: [4]u8, ax, ay, bx, by, cx, cy: int) {
     }
 }
 
+TriangleWithZAsGreyScale::proc(image: Image, ax, ay, az, bx, by, bz, cx, cy, cz: int) {
+    minX := math.min(ax, bx)
+    minX = math.min(minX, cx)
+    minY := math.min(ay, by)
+    minY = math.min(minY, cy)
+
+    maxX := math.max(ax, bx)
+    maxX = math.max(maxX, cx)
+    maxY := math.max(ay, by)
+    maxY = math.max(maxY, cy)
+
+    totalArea := SignedTriangleArea(cast(f32) ax, cast(f32) ay, cast(f32) bx, cast(f32) by, cast(f32) cx, cast(f32) cy)
+    if (totalArea < 1) {
+        // If the triangle covers less than one pixel (area<1) we will discard it.
+        // If the signed area is negative, it means the triangle is facing backward and we will discard it as well.
+        return
+    }
+
+    for x := minX; x <= maxX; x += 1 {
+        for y := minY; y <= maxY; y += 1 {
+            // Here we want to use barycentric coordinate to determine if the pixel is inside the triangle.
+            // -> P = aA + bB + cC
+            // a, b, and c are proportional to the sub-triangle areas: Area(PBC), Area(PCA), and Area(PAB) 
+            // Therefore if any sub-triangle has a negative value, then the pixel is outside the triangle.
+            alpha := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) bx, cast(f32) by, cast(f32) cx, cast(f32) cy) / totalArea
+            beta := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) cx, cast(f32) cy, cast(f32) ax, cast(f32) ay) / totalArea
+            gamma := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) ax, cast(f32) ay, cast(f32) bx, cast(f32) by) / totalArea
+            if (alpha < 0 || beta < 0 || gamma < 0) {
+                // Discard the pixel since it's outside the triangle
+                continue
+            }
+
+            z : u8 = u8((cast(f32) az * alpha) + (cast(f32) bz * beta) + (cast(f32) cz * gamma))
+            SetColor(image, [4]u8 { z, z, z, 255 }, x, y)
+        }
+    }
+}
+
 SignedTriangleArea::proc(ax, ay, bx, by, cx, cy: f32) -> f32 {
     return 0.5 * ((by - ay) * (bx + ax) +
                   (cy - by) * (cx + bx) +
@@ -332,6 +370,15 @@ main::proc() {
         TriangleScanLine(image, WHITE, 120, 35, 90, 5, 45, 110);
         TriangleScanLine(image, GREEN, 115, 83, 80, 90, 85, 120);
         stbi.write_png("output_image.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
+    }
+
+    // Triangle drawing with grey scale
+    {
+        image: Image = CreateImage(64, 64);
+        defer FreeImage(&image);
+        MakeImageMonoColor(image, BLACK)
+        TriangleWithZAsGreyScale(image, ax=17, ay=4, az=13, bx=55, by=39, bz=128, cx=23, cy=59, cz=255)
+        stbi.write_png("grey_scale_triangle.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 
     // Model wireframe (WIP)
