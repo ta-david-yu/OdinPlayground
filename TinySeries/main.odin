@@ -328,9 +328,9 @@ main::proc() {
         image: Image = CreateImage(128, 128);
         defer FreeImage(&image);
         MakeImageMonoColor(image, BLACK)
-        Triangle(image, RED, 7, 45, 35, 100, 45, 60);
-        Triangle(image, WHITE, 120, 35, 90, 5, 45, 110);
-        Triangle(image, GREEN, 115, 83, 80, 90, 85, 120);
+        TriangleScanLine(image, RED, 7, 45, 35, 100, 45, 60);
+        TriangleScanLine(image, WHITE, 120, 35, 90, 5, 45, 110);
+        TriangleScanLine(image, GREEN, 115, 83, 80, 90, 85, 120);
         stbi.write_png("output_image.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 
