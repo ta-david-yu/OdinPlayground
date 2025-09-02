@@ -367,12 +367,6 @@ TriangleWithVertexColorRGB::proc(image: Image, ax, ay, az, bx, by, bz, cx, cy, c
     }
 }
 
-SignedTriangleArea::proc(ax, ay, bx, by, cx, cy: f32) -> f32 {
-    return 0.5 * ((by - ay) * (bx + ax) +
-                  (cy - by) * (cx + bx) +
-                  (ay - cy) * (ax + cx))
-}
-
 DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
     for i := 0; i < len(model.Indices); i += 3 {
         v1 := transformCoordinate(model.Positions[model.Indices[i]], image)
@@ -395,19 +389,76 @@ DrawModelWireframe::proc(image: Image, model: Model, color: [4]u8) {
     }
 }
 
+
+TriangleWithZTest::proc(image: Image, depthBuffer: Image, color: [4]u8, a, b, c: [3]int) {
+    minX := math.min(a.x, b.x)
+    minX = math.min(minX, c.x)
+    minY := math.min(a.y, b.y)
+    minY = math.min(minY, c.y)
+
+    maxX := math.max(a.x, b.x)
+    maxX = math.max(maxX, c.x)
+    maxY := math.max(a.y, b.y)
+    maxY = math.max(maxY, c.y)
+
+    totalArea := SignedTriangleArea(cast(f32) a.x, cast(f32) a.y, cast(f32) b.x, cast(f32) b.y, cast(f32) c.x, cast(f32) c.y)
+    if (totalArea < 1) {
+        // If the triangle covers less than one pixel (area<1) we will discard it.
+        // If the signed area is negative, it means the triangle is facing backward and we will discard it as well.
+        return
+    }
+
+    for x := minX; x <= maxX; x += 1 {
+        for y := minY; y <= maxY; y += 1 {
+            // Here we want to use barycentric coordinate to determine if the pixel is inside the triangle.
+            // -> P = aA + bB + cC
+            // a, b, and c are proportional to the sub-triangle areas: Area(PBC), Area(PCA), and Area(PAB) 
+            // Therefore if any sub-triangle has a negative value, then the pixel is outside the triangle.
+            alpha := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) b.x, cast(f32) b.y, cast(f32) c.x, cast(f32) c.y) / totalArea
+            beta := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) c.x, cast(f32) c.y, cast(f32) a.x, cast(f32) a.y) / totalArea
+            gamma := SignedTriangleArea(cast(f32) x, cast(f32) y, cast(f32) a.x, cast(f32) a.y, cast(f32) b.x, cast(f32) b.y) / totalArea
+            if (alpha < 0 || beta < 0 || gamma < 0) {
+                // Discard the pixel since it's outside the triangle
+                continue
+            }
+
+            z : u8 = u8((cast(f32) a.z * alpha) + (cast(f32) b.z * beta) + (cast(f32) c.z * gamma))
+            SetColor(depthBuffer, { z, z, z, 255 }, x, y)
+
+            SetColor(image, color, x, y)
+        }
+    }
+}
+
 DrawModel::proc(image: Image, model:Model) {
+    depthBuffer: Image = CreateImage(image.Width, image.Height)
+    MakeImageMonoColor(depthBuffer, BLACK)
+    defer FreeImage(&depthBuffer)
+
     for i := 0; i < len(model.Indices); i += 3 {
         v1 := transformCoordinate(model.Positions[model.Indices[i]], image)
         v2 := transformCoordinate(model.Positions[model.Indices[i + 1]], image)
         v3 := transformCoordinate(model.Positions[model.Indices[i + 2]], image)
         
         color : [4]u8 = { cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), 255 }
-        Triangle(image, color, v1[0], v1[1], v2[0], v2[1], v3[0], v3[1])
+        TriangleWithZTest(image, depthBuffer, color, v1, v2, v3)
     }
 
-    transformCoordinate::proc(point: linalg.Vector3f32, image: Image) -> [2]int {
-        return [2]int { cast(int) math.round((point.x + 1) * f32(image.Width) / 2), cast(int) math.round((point.y + 1) * f32(image.Height) / 2) }
+    stbi.write_png("depthBuffer.png", i32(depthBuffer.Width), i32(depthBuffer.Height), 4, raw_data(depthBuffer.Pixels), i32(depthBuffer.Width) * 4)
+
+    transformCoordinate::proc(point: linalg.Vector3f32, image: Image) -> [3]int {
+        return [3]int { 
+            cast(int) math.round((point.x + 1) * f32(image.Width) / 2), 
+            cast(int) math.round((point.y + 1) * f32(image.Height) / 2),
+            cast(int) (f32(point.z + 1) * 127.5)
+        }
     }
+}
+
+SignedTriangleArea::proc(ax, ay, bx, by, cx, cy: f32) -> f32 {
+    return 0.5 * ((by - ay) * (bx + ax) +
+                  (cy - by) * (cx + bx) +
+                  (ay - cy) * (ax + cx))
 }
 
 main::proc() {
@@ -433,14 +484,18 @@ main::proc() {
 
     // Model wireframe (WIP)
     {
+        modelName: string = "diablo3_pose"
+
         image: Image = CreateImage(800, 800);
         defer FreeImage(&image);
         MakeImageMonoColor(image, BLACK)
 
-        model, error := LoadModel("african_head.obj")
+        modelFile: string = fmt.tprintf("%s.obj", modelName)
+        model, error := LoadModel(modelFile)
         defer ReleaseModel(model)
         DrawModel(image, model)
 
-        stbi.write_png("african_head.png", i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
+        outputImageFile: string = fmt.tprintf("%s.png", modelName)
+        stbi.write_png(strings.unsafe_string_to_cstring(outputImageFile), i32(image.Width), i32(image.Height), 4, raw_data(image.Pixels), i32(image.Width) * 4)
     }
 }
