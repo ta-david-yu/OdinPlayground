@@ -1,5 +1,6 @@
 package game
 
+import "core:c"
 import "core:fmt"
 
 GameMemory::struct {
@@ -9,25 +10,25 @@ GameMemory::struct {
 g_Memory: ^GameMemory
 
 @(export)
-InitGame::proc() {
+Game_Init::proc() {
     g_Memory = new (GameMemory)
 }
 
 /* Return false if the game should be shutdown */
 @(export)
-UpdateGame::proc(deltaTime: f64) -> bool {
+Game_Update::proc(deltaTime: c.double) -> bool {
     g_Memory.SomeState += 1
-    fmt.println(g_Memory.SomeState)
+    //fmt.println(g_Memory.SomeState)
     return true
 }
 
 @(export)
-ShutdownGame::proc() {
+Game_Shutdown::proc() {
     free(g_Memory)
 }
 
 @(export)
-GetGameMemory::proc() -> rawptr {
+Game_GetMemory::proc() -> rawptr {
     return g_Memory
 }
 
@@ -36,6 +37,6 @@ Call this function after the game dll is reloaded.
 You should pass in the pointer to the original game memory.
 */
 @(export)
-HotReloadGame::proc(gameMemory: ^GameMemory) {
+Game_OnHotReloaded::proc(gameMemory: ^GameMemory) {
     g_Memory = gameMemory
 }
