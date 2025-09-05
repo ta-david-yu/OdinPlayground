@@ -92,7 +92,7 @@ UnloadGameAPI::proc(api: GameAPI) -> string {
     return fmt.tprintf("game_{0}.dll", api.Info.APIVersion)
 }
 
-GAME_DLL_PATH :: "Game/game.dll"
+GAME_DLL_PATH :: "game.dll"
 
 main::proc() {
     gameAPIVersion := 0
