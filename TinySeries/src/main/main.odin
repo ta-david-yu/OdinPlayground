@@ -18,7 +18,7 @@ GameAPI::struct {
 
     Init: proc(),
     RequireReset: proc() -> bool,
-    Update: proc(deltaTime: c.double) -> bool,
+    Update: proc() -> bool,
     Shutdown: proc(),
     GetMemory: proc() -> rawptr,
     OnHotReloaded: proc(rawptr),
@@ -124,7 +124,7 @@ main::proc() {
             }
         }
 
-        if gameAPI.Update(0) == false {
+        if gameAPI.Update() == false {
             break
         }
         
