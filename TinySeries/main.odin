@@ -93,52 +93,6 @@ UnloadGameAPI::proc(api: GameAPI) -> string {
 
 GAME_DLL_PATH :: "Game/game.dll"
 
-main_test::proc() {
-    copyFile::proc(srcPath, dstPath: string) -> bool {
-        data, ok := os.read_entire_file(srcPath)
-        if !ok {
-            fmt.printfln("Failed copy file error: {0}", os.get_last_error())
-            return false
-        }
-
-        ok = os.write_entire_file(dstPath, data)
-        if !ok {
-            fmt.printfln("Failed copy file error: {0}", os.get_last_error())
-            return false
-        }
-
-        return true
-    }
-
-    sourcePath: string = "game_0.dll"
-    targetPath: string = "game_copy.dll"
-
-    copyFile(sourcePath, targetPath)
-
-    api: GameAPI 
-    fmt.println(api.Library)
-    count, symbolInitResult := dynlib.initialize_symbols(&api, targetPath, "Game_", "Library")
-    fmt.println(count)
-    fmt.println(api.Library)
-
-    fmt.println("Sleep 0.5 seconds...")
-    time.sleep(500000000)
-    fmt.println("Time to unload!")
-
-    unloadResult := dynlib.unload_library(api.Library)
-    if (unloadResult) {
-        api.Library = nil
-        fmt.println("Unload succeeded...")
-        error := os.remove(targetPath)
-        fmt.println(error)
-    } else 
-    {
-        fmt.println("Failed to unload library...")
-    }
-
-    return
-}
-
 main::proc() {
     gameAPIVersion := 0
     gameAPI, gameAPIResult := LoadGameAPI(GAME_DLL_PATH, gameAPIVersion)
