@@ -13,7 +13,6 @@ g_Memory: ^GameMemory
 
 @(export)
 Game_Init::proc() {
-    rl.SetConfigFlags({ .WINDOW_RESIZABLE })
     rl.InitWindow(800, 800, "Odin Tiny Series")
     rl.SetTargetFPS(60)
 
@@ -35,13 +34,9 @@ Game_Update::proc() -> bool {
     rl.BeginDrawing()
     {
         deltaTime := rl.GetFrameTime()
-        color: rl.Color = {
-            u8(g_Memory.SomeState % 255),
-            0,
-            255,
-            255
-        }
-	    rl.ClearBackground(color)
+	    rl.ClearBackground(rl.BLACK)
+
+        rl.DrawPixel(10, 10, rl.WHITE)
     }
     rl.EndDrawing()
 
