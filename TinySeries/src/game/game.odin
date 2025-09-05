@@ -25,7 +25,7 @@ GameMemory::struct {
 
 g_Memory: ^GameMemory
 
-MODEL_NAME :: "diablo3_pose"
+MODEL_NAME :: "african_head"
 
 @(export)
 Game_Init::proc() {
@@ -36,6 +36,7 @@ Game_Init::proc() {
     g_Memory.Framebuffer = CreateImage(800, 800)
     g_Memory.Depthbuffer = CreateImage(800, 800)
     MakeImageMonoColor(g_Memory.Depthbuffer, BLACK)
+
     modelFile: string = fmt.tprintf("assets/%s.obj", MODEL_NAME)
     model, error := LoadModel(modelFile)
     g_Memory.Model = model
@@ -54,36 +55,7 @@ Game_Update::proc() -> bool {
 		g_Memory.ShouldQuit = true
 	}
     if rl.IsKeyPressed(.R) {
-
-        // Re-render the model to the image
-        MakeImageMonoColor(g_Memory.Framebuffer, BLACK)
-        MakeImageMonoColor(g_Memory.Depthbuffer, BLACK)
-        DrawModel(g_Memory.Framebuffer, g_Memory.Depthbuffer, g_Memory.Model)
-
-        outputImageFile: string = fmt.tprintf("%s.png", MODEL_NAME)
-        stbi.write_png(
-            strings.unsafe_string_to_cstring(outputImageFile), 
-            i32(g_Memory.Framebuffer.Width), 
-            i32(g_Memory.Framebuffer.Height), 
-            4, 
-            raw_data(g_Memory.Framebuffer.Pixels), 
-            i32(g_Memory.Framebuffer.Width) * 4
-        )
-
-        // Load the image as a texture again and render it
-        if (rl.IsTextureValid(g_Memory.RenderTexture)) {
-            // Unload the old one first
-            rl.UnloadTexture(g_Memory.RenderTexture)
-        }
-        g_Memory.RenderTexture = rl.LoadTexture(strings.unsafe_string_to_cstring(outputImageFile))
-
-        // Also load the depth buffer for debugging
-        depthBufferImageFile: string = fmt.tprintf("depthBuffer.png")
-        if (rl.IsTextureValid(g_Memory.DepthRenderTexture)) {
-            // Unload the old one first
-            rl.UnloadTexture(g_Memory.DepthRenderTexture)
-        }
-        g_Memory.DepthRenderTexture = rl.LoadTexture(strings.unsafe_string_to_cstring(depthBufferImageFile))
+        RenderImages()
     }
     rl.BeginDrawing()
     {
@@ -119,6 +91,7 @@ You should pass in the pointer to the original game memory.
 @(export)
 Game_OnHotReloaded::proc(gameMemory: ^GameMemory) {
     g_Memory = gameMemory
+    RenderImages()
 }
 
 
@@ -126,6 +99,43 @@ BLACK :: [4]u8 {0, 0, 0, 255}
 Model::struct {
     Positions: [dynamic]linalg.Vector3f32,
     Indices: [dynamic]int
+}
+
+RenderImages::proc() {
+    ReleaseModel(g_Memory.Model)
+    modelFile: string = fmt.tprintf("assets/%s.obj", MODEL_NAME)
+    model, error := LoadModel(modelFile)
+    g_Memory.Model = model
+
+    // Re-render the model to the image
+    MakeImageMonoColor(g_Memory.Framebuffer, BLACK)
+    MakeImageMonoColor(g_Memory.Depthbuffer, BLACK)
+    DrawModel(g_Memory.Framebuffer, g_Memory.Depthbuffer, g_Memory.Model)
+
+    outputImageFile: string = fmt.tprintf("%s.png", MODEL_NAME)
+    stbi.write_png(
+        strings.unsafe_string_to_cstring(outputImageFile), 
+        i32(g_Memory.Framebuffer.Width), 
+        i32(g_Memory.Framebuffer.Height), 
+        4, 
+        raw_data(g_Memory.Framebuffer.Pixels), 
+        i32(g_Memory.Framebuffer.Width) * 4
+    )
+
+    // Load the image as a texture again and render it
+    if (rl.IsTextureValid(g_Memory.RenderTexture)) {
+        // Unload the old one first
+        rl.UnloadTexture(g_Memory.RenderTexture)
+    }
+    g_Memory.RenderTexture = rl.LoadTexture(strings.unsafe_string_to_cstring(outputImageFile))
+
+    // Also load the depth buffer for debugging
+    depthBufferImageFile: string = fmt.tprintf("depthBuffer.png")
+    if (rl.IsTextureValid(g_Memory.DepthRenderTexture)) {
+        // Unload the old one first
+        rl.UnloadTexture(g_Memory.DepthRenderTexture)
+    }
+    g_Memory.DepthRenderTexture = rl.LoadTexture(strings.unsafe_string_to_cstring(depthBufferImageFile))
 }
 
 LoadModel::proc(filePath: string) -> (Model, os.Error) {
