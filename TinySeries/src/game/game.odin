@@ -5,7 +5,8 @@ import "core:fmt"
 import rl "vendor:raylib"
 
 GameMemory::struct {
-    SomeState: int
+    SomeState: int,
+    ShouldQuit: bool
 }
 
 g_Memory: ^GameMemory
@@ -27,13 +28,25 @@ Game_RequireReset::proc() -> bool {
 /* Return false if the game should be shutdown */
 @(export)
 Game_Update::proc() -> bool {
-    g_Memory.SomeState += 1
+    g_Memory.SomeState += 5
+	if rl.IsKeyPressed(.ESCAPE) {
+		g_Memory.ShouldQuit = true
+	}
     rl.BeginDrawing()
     {
         deltaTime := rl.GetFrameTime()
+        color: rl.Color = {
+            u8(g_Memory.SomeState % 255),
+            0,
+            255,
+            255
+        }
+	    rl.ClearBackground(color)
     }
     rl.EndDrawing()
-    return true
+
+    keepRunning: bool = !g_Memory.ShouldQuit && !rl.WindowShouldClose() 
+    return keepRunning
 }
 
 @(export)

@@ -1,1 +1,1 @@
-Copy the dll here into the build folder for hotreloading
+Copy the dll here into the build folder for hot reloading
