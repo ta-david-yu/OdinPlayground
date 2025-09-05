@@ -17,8 +17,8 @@ Game_Init::proc() {
 /* Return false if the game should be shutdown */
 @(export)
 Game_Update::proc(deltaTime: c.double) -> bool {
-    g_Memory.SomeState += 1
-    //fmt.println(g_Memory.SomeState)
+    g_Memory.SomeState += 5
+    fmt.printfln("HAHA: {0}", g_Memory.SomeState)
     return true
 }
 
