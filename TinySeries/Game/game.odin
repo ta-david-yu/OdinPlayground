@@ -14,6 +14,11 @@ Game_Init::proc() {
     g_Memory = new (GameMemory)
 }
 
+@(export)
+Game_RequireReset::proc() -> bool {
+    return false    
+}
+
 /* Return false if the game should be shutdown */
 @(export)
 Game_Update::proc(deltaTime: c.double) -> bool {

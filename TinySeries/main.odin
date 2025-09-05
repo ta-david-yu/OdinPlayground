@@ -17,6 +17,7 @@ GameAPI::struct {
     Library: dynlib.Library,
 
     Init: proc(),
+    RequireReset: proc() -> bool,
     Update: proc(deltaTime: c.double) -> bool,
     Shutdown: proc(),
     GetMemory: proc() -> rawptr,
@@ -109,6 +110,7 @@ main::proc() {
 
     for {
         if (len(pathsToLibrariesToRemove) > 0) {
+            // Delete old dlls in batch
             #reverse for libraryPath in pathsToLibrariesToRemove {
                 // Delete the copied game.dll
                 removeError := os.remove(libraryPath)
@@ -125,33 +127,59 @@ main::proc() {
         if gameAPI.Update(0) == false {
             break
         }
+        
+        // Check if the game api has request a manual reset
+        requireReset := gameAPI.RequireReset()
+        if (requireReset) {
+            fmt.printfln("Reseeting Game...")
+            newAPI, newAPIResult := LoadGameAPI(GAME_DLL_PATH, gameAPIVersion)
+            if newAPIResult {
+                gameAPI.Shutdown()
+
+                // Unload the old library
+                libraryToRemove := UnloadGameAPI(gameAPI)
+                if (len(libraryToRemove) != 0) {
+                    append(&pathsToLibrariesToRemove, libraryToRemove)
+                }
+                
+                // Replace the api with the new loaded instance
+                gameAPI = newAPI
+
+                // Set the address to the mmoery back
+                gameAPI.Init()
+
+                gameAPIVersion += 1
+                continue
+            }
+        }
 
         // Check if the dll has a new update
         dllTime, dllTimeError := os.last_write_time_by_name(GAME_DLL_PATH)
         shouldReload : bool = dllTimeError == os.ERROR_NONE && gameAPI.Info.DLLTimestamp != dllTime
-        if !shouldReload {
-            continue
-        }
+        if shouldReload {
+            newAPI, newAPIResult := LoadGameAPI(GAME_DLL_PATH, gameAPIVersion)
+            if newAPIResult {
+                // Cache the address to the game memory
+                existingGameMemory : rawptr = gameAPI.GetMemory()
+                
+                // Unload the old library
+                libraryToRemove := UnloadGameAPI(gameAPI)
+                if (len(libraryToRemove) != 0) {
+                    append(&pathsToLibrariesToRemove, libraryToRemove)
+                }
+                
+                // Replace the api with the new loaded instance
+                gameAPI = newAPI
 
-        newAPI, newAPIResult := LoadGameAPI(GAME_DLL_PATH, gameAPIVersion)
-        if newAPIResult {
-            // Cache the address to the game memory
-            existingGameMemory : rawptr = gameAPI.GetMemory()
-            
-            // Unload the old library
-            libraryToRemove := UnloadGameAPI(gameAPI)
-            if (len(libraryToRemove) != 0) {
-                append(&pathsToLibrariesToRemove, libraryToRemove)
+                // Set the address to the mmoery back
+                gameAPI.OnHotReloaded(existingGameMemory)
+
+                gameAPIVersion += 1
+                continue
             }
-            
-            // Replace the api with the new loaded instance
-            gameAPI = newAPI
-
-            // Set the address to the mmoery back
-            gameAPI.OnHotReloaded(existingGameMemory)
-
-            gameAPIVersion += 1
         }
+
+        
     }
 
     fmt.println("Shutting down...")
