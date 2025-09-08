@@ -18,4 +18,4 @@ if "%~1"=="" (
 if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
 :: Run the build
-odin build src\game\game.odin -file %DEBUGFLAG% -define:RAYLIB_SHARED=true -build-mode:dll -out:"%OUTDIR%\game.dll"
+odin build src\game %DEBUGFLAG% -define:RAYLIB_SHARED=true -build-mode:dll -out:"%OUTDIR%\game.dll"

@@ -13,11 +13,11 @@ import rl "vendor:raylib"
 import stbi "vendor:stb/image"
 
 GameMemory::struct {
-    SomeState: int,
     ShouldQuit: bool,
     Framebuffer: Image,
     Depthbuffer: Image,
     Model: Model,
+    Transform: Transform,
 
     RenderTexture: rl.Texture2D,
     DepthRenderTexture: rl.Texture2D,
@@ -25,7 +25,7 @@ GameMemory::struct {
 
 g_Memory: ^GameMemory
 
-MODEL_NAME :: "african_head"
+MODEL_NAME :: "diablo3_pose"
 
 @(export)
 Game_Init::proc() {
@@ -40,6 +40,12 @@ Game_Init::proc() {
     modelFile: string = fmt.tprintf("assets/%s.obj", MODEL_NAME)
     model, error := LoadModel(modelFile)
     g_Memory.Model = model
+
+    g_Memory.Transform = {
+        Position = {0, 0, 0},
+        Rotation = {0, 0, 0},
+        Scale = {1, 1, 1}
+    }
 }
 
 @(export)
@@ -50,7 +56,6 @@ Game_RequireReset::proc() -> bool {
 /* Return false if the game should be shutdown */
 @(export)
 Game_Update::proc() -> bool {
-    g_Memory.SomeState += 5
 	if rl.IsKeyPressed(.ESCAPE) {
 		g_Memory.ShouldQuit = true
 	}
