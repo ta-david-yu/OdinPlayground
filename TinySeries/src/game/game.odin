@@ -43,7 +43,7 @@ Game_Init::proc() {
 
     g_Memory.Transform = {
         Position = {0, 0, 0},
-        Rotation = {0, 0, 0},
+        Rotation = {0, 1, 0},
         Scale = {1, 1, 1}
     }
 }
@@ -62,6 +62,15 @@ Game_Update::proc() -> bool {
     if rl.IsKeyPressed(.R) {
         RenderImages()
     }
+    if rl.IsKeyDown(.D) {
+        g_Memory.Transform.Rotation.y += .1
+        RenderImages()
+    }
+    if rl.IsKeyDown(.A) {
+        g_Memory.Transform.Rotation.y -= .1
+        RenderImages()
+    }
+
     rl.BeginDrawing()
     {
         deltaTime := rl.GetFrameTime()
@@ -115,7 +124,7 @@ RenderImages::proc() {
     // Re-render the model to the image
     MakeImageMonoColor(g_Memory.Framebuffer, BLACK)
     MakeImageMonoColor(g_Memory.Depthbuffer, BLACK)
-    DrawModel(g_Memory.Framebuffer, g_Memory.Depthbuffer, g_Memory.Model)
+    DrawModel(g_Memory.Framebuffer, g_Memory.Depthbuffer, g_Memory.Model, g_Memory.Transform)
 
     outputImageFile: string = fmt.tprintf("%s.png", MODEL_NAME)
     stbi.write_png(
@@ -310,14 +319,23 @@ TriangleWithZTest::proc(image: Image, depthBuffer: Image, color: [4]u8, a, b, c:
     }
 }
 
-DrawModel::proc(image: Image, depthBuffer: Image, model: Model) {
+DrawModel::proc(image: Image, depthBuffer: Image, model: Model, transform: Transform) {
     for i := 0; i < len(model.Indices); i += 3 {
-        v1 := transformCoordinate(model.Positions[model.Indices[i]], image)
-        v2 := transformCoordinate(model.Positions[model.Indices[i + 1]], image)
-        v3 := transformCoordinate(model.Positions[model.Indices[i + 2]], image)
+        v1InLocalSpace := model.Positions[model.Indices[i]]
+        v2InLocalSpace := model.Positions[model.Indices[i + 1]]
+        v3InLocalSpace := model.Positions[model.Indices[i + 2]]
+
+        transformMatrix := TransformMatrix(transform)
+        v1InWorldSpace := transformMatrix * [4]f32 { v1InLocalSpace.x, v1InLocalSpace.y, v1InLocalSpace.z, 1 }
+        v2InWorldSpace := transformMatrix * [4]f32 { v2InLocalSpace.x, v2InLocalSpace.y, v2InLocalSpace.z, 1 }
+        v3InWorldSpace := transformMatrix * [4]f32 { v3InLocalSpace.x, v3InLocalSpace.y, v3InLocalSpace.z, 1 }
+
+        v1InScreenSpace := transformCoordinate(v1InWorldSpace.xyz, image)
+        v2InScreenSpace := transformCoordinate(v2InWorldSpace.xyz, image)
+        v3InScreenSpace := transformCoordinate(v3InWorldSpace.xyz, image)
         
         color : [4]u8 = { cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), 255 }
-        TriangleWithZTest(image, depthBuffer, color, v1, v2, v3)
+        TriangleWithZTest(image, depthBuffer, color, v1InScreenSpace, v2InScreenSpace, v3InScreenSpace)
     }
 
     stbi.write_png("depthBuffer.png", i32(depthBuffer.Width), i32(depthBuffer.Height), 4, raw_data(depthBuffer.Pixels), i32(depthBuffer.Width) * 4)
