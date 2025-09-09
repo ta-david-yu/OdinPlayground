@@ -25,7 +25,7 @@ GameMemory::struct {
 
 g_Memory: ^GameMemory
 
-MODEL_NAME :: "diablo3_pose"
+MODEL_NAME :: "african_head"
 
 @(export)
 Game_Init::proc() {
@@ -261,6 +261,10 @@ SetColor::proc(image: Image, color: [4]u8, x, y: int) {
         return
     }
 
+    if (pixelIndex < 0) {
+        return
+    }
+
     image.Pixels[pixelIndex+0] = color[0]
     image.Pixels[pixelIndex+1] = color[1]
     image.Pixels[pixelIndex+2] = color[2]
@@ -270,6 +274,10 @@ SetColor::proc(image: Image, color: [4]u8, x, y: int) {
 GetColor::proc(image: Image, point: [2]int) -> [4]u8 {
     pixelIndex := ((image.Height - point.y) * image.Width + point.x) * 4
     if (pixelIndex >= len(image.Pixels)) {
+        return { 0, 0, 0, 0 }
+    }
+
+    if (pixelIndex < 0) {
         return { 0, 0, 0, 0 }
     }
 
@@ -330,15 +338,21 @@ DrawModel::proc(image: Image, depthBuffer: Image, model: Model, transform: Trans
         v2InWorldSpace := transformMatrix * [4]f32 { v2InLocalSpace.x, v2InLocalSpace.y, v2InLocalSpace.z, 1 }
         v3InWorldSpace := transformMatrix * [4]f32 { v3InLocalSpace.x, v3InLocalSpace.y, v3InLocalSpace.z, 1 }
 
-        v1InScreenSpace := transformCoordinate(v1InWorldSpace.xyz, image)
-        v2InScreenSpace := transformCoordinate(v2InWorldSpace.xyz, image)
-        v3InScreenSpace := transformCoordinate(v3InWorldSpace.xyz, image)
+        v1InScreenSpace := transformCoordinate(perspectiveProject(v1InWorldSpace.xyz), image)
+        v2InScreenSpace := transformCoordinate(perspectiveProject(v2InWorldSpace.xyz), image)
+        v3InScreenSpace := transformCoordinate(perspectiveProject(v3InWorldSpace.xyz), image)
         
         color : [4]u8 = { cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), 255 }
         TriangleWithZTest(image, depthBuffer, color, v1InScreenSpace, v2InScreenSpace, v3InScreenSpace)
     }
 
     stbi.write_png("depthBuffer.png", i32(depthBuffer.Width), i32(depthBuffer.Height), 4, raw_data(depthBuffer.Pixels), i32(depthBuffer.Width) * 4)
+
+    perspectiveProject::proc(point: linalg.Vector3f32) -> linalg.Vector3f32 {
+        point := point
+        c: f32 = 3
+        return point / (1 - point.z / c)
+    }
 
     transformCoordinate::proc(point: linalg.Vector3f32, image: Image) -> [3]int {
         return [3]int { 
