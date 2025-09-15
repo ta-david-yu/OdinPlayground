@@ -8,7 +8,7 @@ Transform::struct {
     Scale: [3]f32
 }
 
-TransformMatrix :: proc(t: Transform) -> matrix[4, 4]f32 {
+TransformMatrix::proc(t: Transform) -> matrix[4, 4]f32 {
     // Unpack
     tx := t.Position[0]; ty := t.Position[1]; tz := t.Position[2]
     rx := t.Rotation[0]; ry := t.Rotation[1]; rz := t.Rotation[2]
@@ -32,9 +32,15 @@ TransformMatrix :: proc(t: Transform) -> matrix[4, 4]f32 {
     R21 :=  cy*sxr
     R22 :=  cy*cx
 
-    // Start with identity
-    M: matrix[4, 4]f32 = f32(1)
+    M: matrix[4, 4]f32 = {
+        R00 * sx, R01 * sy, R02 * sz, tx,
+        R10 * sx, R11 * sy, R12 * sz, ty,
+        R20 * sx, R21 * sy, R22 * sz, tz,
+               0,        0,        0,  1  
+    }
+    // Since it's column-major, M[3][0] should be tx, M[3][1] is ty
 
+    /*
     // Column-major fill:
     //   column 0 = (R00, R10, R20) * sx
     //   column 1 = (R01, R11, R21) * sy
@@ -48,6 +54,7 @@ TransformMatrix :: proc(t: Transform) -> matrix[4, 4]f32 {
     M[3][1] = ty
     M[3][2] = tz
     M[3][3] = 1
+    */
 
     return M
 }
