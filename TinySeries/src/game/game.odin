@@ -17,7 +17,8 @@ GameMemory::struct {
     Framebuffer: Image,
     Depthbuffer: Image,
     Model: Model,
-    Transform: Transform,
+    ObjectTransform: Transform,
+    CameraTransform: Transform,
 
     RenderTexture: rl.Texture2D,
     DepthRenderTexture: rl.Texture2D,
@@ -41,9 +42,15 @@ Game_Init::proc() {
     model, error := LoadModel(modelFile)
     g_Memory.Model = model
 
-    g_Memory.Transform = {
+    g_Memory.ObjectTransform = {
         Position = {0, 0, 0},
-        Rotation = {0, 1, 0},
+        Rotation = {0, 0, 0},
+        Scale = {1, 1, 1}
+    }
+
+    g_Memory.CameraTransform = {
+        Position = {0, 0, 20},
+        Rotation = {0, math.PI, 0},
         Scale = {1, 1, 1}
     }
 }
@@ -62,12 +69,38 @@ Game_Update::proc() -> bool {
     if rl.IsKeyPressed(.R) {
         RenderImages()
     }
+
     if rl.IsKeyDown(.D) {
-        g_Memory.Transform.Rotation.y += .1
+        g_Memory.ObjectTransform.Rotation.y += .1
         RenderImages()
     }
     if rl.IsKeyDown(.A) {
-        g_Memory.Transform.Rotation.y -= .1
+        g_Memory.ObjectTransform.Rotation.y -= .1
+        RenderImages()
+    }
+    if rl.IsKeyDown(.W) {
+        g_Memory.ObjectTransform.Position.z += .1
+        RenderImages()
+    }
+    if rl.IsKeyDown(.S) {
+        g_Memory.ObjectTransform.Position.z -= .1
+        RenderImages()
+    }
+
+    if rl.IsKeyDown(.LEFT) {
+        g_Memory.CameraTransform.Rotation.y += .1
+        RenderImages()
+    }
+    if rl.IsKeyDown(.RIGHT) {
+        g_Memory.CameraTransform.Rotation.y -= .1
+        RenderImages()
+    }
+    if rl.IsKeyDown(.UP) {
+        g_Memory.CameraTransform.Position.z += .1
+        RenderImages()
+    }
+    if rl.IsKeyDown(.DOWN) {
+        g_Memory.CameraTransform.Position.z -= .1
         RenderImages()
     }
 
@@ -78,6 +111,20 @@ Game_Update::proc() -> bool {
         rl.DrawTexture(g_Memory.RenderTexture, 0, 0, { 255, 255, 255, 255 })
         rl.DrawTexture(g_Memory.DepthRenderTexture, 800, 0, { 255, 255, 255, 255 })
         rl.DrawText("PRESS R TO RENDER IMAGE", 20, 20, 12, {255, 255, 255, 255})
+        
+        // Draw object transform
+        objTransformStrBuffer: [256]u8;
+        objectTransformInfoStr: string = fmt.bprint(objTransformStrBuffer[:], 
+            "object: position: ", g_Memory.ObjectTransform.Position, 
+            ", rotation: ", g_Memory.ObjectTransform.Rotation);
+        rl.DrawText(strings.unsafe_string_to_cstring(objectTransformInfoStr), 20, 30, 24, {255, 255, 255, 255})
+        
+        // Draw camera transform
+        camTransformStrBuffer: [256]u8;
+        cameraTransformInfoStr: string = fmt.bprint(camTransformStrBuffer[:], 
+            "camera: position: ", g_Memory.CameraTransform.Position, 
+            ", rotation: ", g_Memory.CameraTransform.Rotation);
+        rl.DrawText(strings.unsafe_string_to_cstring(cameraTransformInfoStr), 20, 60, 24, {255, 255, 255, 255})
     }
     rl.EndDrawing()
 
@@ -124,7 +171,7 @@ RenderImages::proc() {
     // Re-render the model to the image
     MakeImageMonoColor(g_Memory.Framebuffer, BLACK)
     MakeImageMonoColor(g_Memory.Depthbuffer, BLACK)
-    DrawModel(g_Memory.Framebuffer, g_Memory.Depthbuffer, g_Memory.Model, g_Memory.Transform)
+    DrawModel(g_Memory.Framebuffer, g_Memory.Depthbuffer, g_Memory.Model, g_Memory.ObjectTransform, g_Memory.CameraTransform)
 
     outputImageFile: string = fmt.tprintf("%s.png", MODEL_NAME)
     stbi.write_png(
@@ -327,20 +374,30 @@ TriangleWithZTest::proc(image: Image, depthBuffer: Image, color: [4]u8, a, b, c:
     }
 }
 
-DrawModel::proc(image: Image, depthBuffer: Image, model: Model, transform: Transform) {
+DrawModel::proc(image: Image, depthBuffer: Image, model: Model, transform: Transform, cameraTransform: Transform) {
+    transformMatrix := TransformMatrix(transform)
+    viewMatrix := ViewMatrix(cameraTransform)
+
+    fov: f32 = (45.0 / 360.0) * 2 * math.PI
+    aspectRatio: f32 = cast(f32) image.Width / cast(f32) image.Height
+    perspectiveProjectMatrix := PerspectiveProjectionMatrix(fov, aspectRatio, 0.001, 100.0)
+
     for i := 0; i < len(model.Indices); i += 3 {
         v1InLocalSpace := model.Positions[model.Indices[i]]
         v2InLocalSpace := model.Positions[model.Indices[i + 1]]
         v3InLocalSpace := model.Positions[model.Indices[i + 2]]
 
-        transformMatrix := TransformMatrix(transform)
-        v1InWorldSpace := transformMatrix * [4]f32 { v1InLocalSpace.x, v1InLocalSpace.y, v1InLocalSpace.z, 1 }
-        v2InWorldSpace := transformMatrix * [4]f32 { v2InLocalSpace.x, v2InLocalSpace.y, v2InLocalSpace.z, 1 }
-        v3InWorldSpace := transformMatrix * [4]f32 { v3InLocalSpace.x, v3InLocalSpace.y, v3InLocalSpace.z, 1 }
+        v1InCameraSpace := viewMatrix * transformMatrix * [4]f32 { v1InLocalSpace.x, v1InLocalSpace.y, v1InLocalSpace.z, 1 }
+        v2InCameraSpace := viewMatrix * transformMatrix * [4]f32 { v2InLocalSpace.x, v2InLocalSpace.y, v2InLocalSpace.z, 1 }
+        v3InCameraSpace := viewMatrix * transformMatrix * [4]f32 { v3InLocalSpace.x, v3InLocalSpace.y, v3InLocalSpace.z, 1 }
 
-        v1InScreenSpace := transformCoordinate(perspectiveProject(v1InWorldSpace.xyz), image)
-        v2InScreenSpace := transformCoordinate(perspectiveProject(v2InWorldSpace.xyz), image)
-        v3InScreenSpace := transformCoordinate(perspectiveProject(v3InWorldSpace.xyz), image)
+        v1InNDC := perspectiveProjectMatrix * v1InCameraSpace
+        v2InNDC := perspectiveProjectMatrix * v2InCameraSpace
+        v3InNDC := perspectiveProjectMatrix * v3InCameraSpace
+
+        v1InScreenSpace := project(v1InNDC.xyz, image)
+        v2InScreenSpace := project(v2InNDC.xyz, image)
+        v3InScreenSpace := project(v3InNDC.xyz, image)
         
         color : [4]u8 = { cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), cast(u8) rand.int_max(256), 255 }
         TriangleWithZTest(image, depthBuffer, color, v1InScreenSpace, v2InScreenSpace, v3InScreenSpace)
@@ -348,13 +405,14 @@ DrawModel::proc(image: Image, depthBuffer: Image, model: Model, transform: Trans
 
     stbi.write_png("depthBuffer.png", i32(depthBuffer.Width), i32(depthBuffer.Height), 4, raw_data(depthBuffer.Pixels), i32(depthBuffer.Width) * 4)
 
-    perspectiveProject::proc(point: linalg.Vector3f32) -> linalg.Vector3f32 {
+    perspective::proc(point: linalg.Vector3f32) -> linalg.Vector3f32 {
         point := point
         c: f32 = 3
         return point / (1 - point.z / c)
     }
 
-    transformCoordinate::proc(point: linalg.Vector3f32, image: Image) -> [3]int {
+    /// This map x[-1, 1] to x[0, width], y[-1, 1] to y[0, height], z[-1, 1] to z[0, 255]
+    project::proc(point: linalg.Vector3f32, image: Image) -> [3]int {
         return [3]int { 
             cast(int) math.round((point.x + 1) * f32(image.Width) / 2), 
             cast(int) math.round((point.y + 1) * f32(image.Height) / 2),
