@@ -1,5 +1,6 @@
 package game
 
+import "core:math/linalg"
 import "core:math"
 
 Transform::struct {
@@ -57,4 +58,12 @@ TransformMatrix::proc(t: Transform) -> matrix[4, 4]f32 {
     */
 
     return M
+}
+
+CameraLookAtMatrix::proc(cameraPos: [3]f32, lookAt: [3]f32, up: [3]f32) -> matrix[4, 4]f32 {
+    n := linalg.vector_normalize(cameraPos - lookAt)
+    l := linalg.vector_normalize(linalg.cross(up, n))
+    m := linalg.vector_normalize(linalg.cross(n, l))
+
+    // TODO:
 }
