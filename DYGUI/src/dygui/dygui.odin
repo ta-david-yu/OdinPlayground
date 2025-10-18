@@ -5,6 +5,8 @@ import "core:fmt"
 
 NUMBER_OF_MOUSE_BUTTONS :: 5
 
+DYID :: distinct u32
+
 Rect :: struct 
 {
     Position: [2]f32,
@@ -17,10 +19,14 @@ State :: struct
     InputState: InputState,
     Frame: Frame,
 
-    ActiveId: u32,
+    ActiveId: DYID,
     IsActiveIdJustActivated: bool,
-    ActiveIdIsAlive: u32,
-    ActiveIdPreviousFrame: u32
+    ActiveIdIsAlive: DYID,
+    ActiveIdPreviousFrame: DYID,
+
+    HoveredId: DYID,
+
+    LastItemData: LastItemData,
 }
 
 g_State: State
@@ -43,6 +49,12 @@ Frame :: struct
 {
     NumberOfButtons: int,
     Buttons: [dynamic]ButtonData
+}
+
+LastItemData :: struct 
+{
+    Id: DYID,
+    Rect: Rect
 }
 
 ButtonData :: struct 
@@ -79,6 +91,12 @@ isMouseButtonDown :: proc(mouseButton: u8) -> bool
     return g_State.InputState.MouseButtons[mouseButton]
 }
 
+@(private)
+getID :: proc(label: string) -> DYID 
+{
+    return cast(DYID) hash.crc32(transmute([]byte) label)
+}
+
 Init :: proc(canvas: Canvas) 
 {
     g_State.Canvas = canvas
@@ -87,13 +105,23 @@ Init :: proc(canvas: Canvas)
 NewFrame :: proc() 
 {
     state := GetState()
+    
+
+    // Clear button states
     state.Frame.NumberOfButtons = 0
 
+    // Clear last item data states
+    state.LastItemData.Id = 0
+    state.LastItemData.Rect = {}
+
+    // Clear hover states
+    state.HoveredId = 0
+
+    // Clear active states
     if (state.ActiveId != 0 && state.ActiveIdIsAlive != state.ActiveId && state.ActiveIdPreviousFrame == state.ActiveId) 
     {
         clearActiveId()
     }
-
     state.ActiveIdPreviousFrame = state.ActiveId 
     state.ActiveIdIsAlive = 0
     state.IsActiveIdJustActivated = false
@@ -128,7 +156,7 @@ isPointInRect :: proc(point: [2]f32, rect: Rect) -> bool
 }
 
 @(private)
-setActiveId :: proc(id: u32) 
+setActiveId :: proc(id: DYID) 
 {
     state := GetState()
     if (state.ActiveId != 0) 
@@ -155,13 +183,37 @@ clearActiveId :: proc()
     GetState().ActiveId = 0
 }
 
+@(private)
+setHoveredId :: proc(id: DYID)
+{
+    state := GetState()
+    state.HoveredId = id
+}
+
+@(private)
+addItem :: proc(rect: Rect, id: DYID) 
+{    
+    state := GetState()
+    if (state.ActiveId == id)
+    {
+        state.ActiveIdIsAlive = id
+    }
+    state.LastItemData.Id = id
+    state.LastItemData.Rect = rect
+}
+
+IsItemHovered :: proc() -> bool
+{
+    state := GetState()
+    return state.HoveredId == state.LastItemData.Id
+}
+
 Button :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> bool 
 {
-    isClicked : bool = false;
-
-    id : u32 = hash.crc32(transmute([]byte) label)
-    
     state := GetState()
+
+    isClicked : bool = false;
+    id : DYID = getID(label)
     
     if (state.Frame.NumberOfButtons >= len(state.Frame.Buttons)) 
     {
@@ -172,17 +224,15 @@ Button :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> b
     button : ^ButtonData = &state.Frame.Buttons[state.Frame.NumberOfButtons]    
     state.Frame.NumberOfButtons += 1
 
-    // Mark the button id as alive if it was already the active id last frame
-    if (state.ActiveId == id)
-    {
-        state.ActiveIdIsAlive = id
-    }
+    addItem(rect, id)
 
     mouseButton : u8 = 0
     // Handle the case where the user pointer is within the hoverable rect
     isHovered: bool = isPointInRect(state.InputState.MousePosition, rect)
     if (isHovered) 
     {
+        setHoveredId(id)
+
         isMouseDown := wasMouseButtonDownThisFrame(mouseButton)
         if (isMouseDown) 
         {
@@ -206,7 +256,7 @@ Button :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> b
         }  
         else 
         {
-            //clearActiveId()
+            clearActiveId()
         }
     }
 

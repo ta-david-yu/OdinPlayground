@@ -1,11 +1,17 @@
 package main
 
 import "core:fmt"
-import dygui "dygui"
 import "vendor:sdl3"
+import dygui "dygui"
+
+movingButtonPos : [2]f32 = { 50, 100 }
+movingSpeed : f32 = 50
 
 main :: proc() 
 {
+	timeLastFrame : u64 = 0
+	time : u64 = 0
+
 	if (!sdl3.SetAppMetadata("DYGUI", "0.1.0", "com.ta-david-ui.dygui")) 
 	{
 		sdl3.Log("Failed to set metadata");
@@ -68,12 +74,39 @@ main :: proc()
 		{
 			if (dygui.Button("Red", {10, 10}, {40, 20}, {255, 0, 0, 255})) 
 			{
-				fmt.println("Red")
+				fmt.println("Click Red")
 			}
 
 			if (dygui.Button("Green", {200, 150}, {40, 20}, {0, 255, 0, 255})) 
 			{
-				fmt.println("Green")
+				fmt.println("Click Green1")
+			}
+
+			if (dygui.Button("Green", {150, 350}, {40, 20}, {0, 255, 0, 255})) 
+			{
+				fmt.println("Click Green2")
+			}
+			
+			deltaTime : f32 = cast(f32) (time - timeLastFrame) / 1000.0
+			
+			width : f32 = 40
+			movingButtonPos.x += deltaTime * movingSpeed
+			if (movingButtonPos.x > 640)
+			{
+				movingButtonPos.x = -width
+			}
+
+			if (dygui.Button("Moving", movingButtonPos, {width, 20}, {0, 0, 255, 255})) 
+			{
+				fmt.println("Click Moving")
+			}
+			if (dygui.IsItemHovered())
+			{
+				movingSpeed = 100
+			}
+			else 
+			{
+				movingSpeed = 200
 			}
 		}
 		dygui.EndFrame()
@@ -102,5 +135,8 @@ main :: proc()
 		sdl3.RenderFillRect(renderer, &rect)*/
 
 		sdl3.RenderPresent(renderer)
+
+		timeLastFrame = time
+		time = sdl3.GetTicks()
 	}
 }
