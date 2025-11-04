@@ -1,7 +1,6 @@
 package dygui
 
 import "core:hash"
-import "core:fmt"
 
 NUMBER_OF_MOUSE_BUTTONS :: 5
 
@@ -13,11 +12,58 @@ Rect :: struct
     Size: [2]f32
 }
 
+TextDrawData :: struct
+{
+    TextRect: Rect,
+    TextContent: string,
+    TextColor: [4]u8
+}
+
+RectangleDrawData :: struct 
+{
+    Rect: Rect,
+    Color: [4]u8
+}
+
+DrawData :: union 
+{
+    TextDrawData,
+    RectangleDrawData
+}
+
+DrawCommand :: struct
+{
+    Data: DrawData,
+}
+
+DrawFrame :: struct 
+{
+    NumberOfDrawCommands: int,
+    DrawCommands: [dynamic]DrawCommand
+}
+
+addCommandToFrame :: proc (drawData: DrawData, frame: ^DrawFrame)
+{
+    command : DrawCommand
+    command.Data = drawData
+
+    if (frame.NumberOfDrawCommands >= len(frame.DrawCommands))
+    {
+        append(&frame.DrawCommands, command)
+    }
+    else
+    {
+        frame.DrawCommands[frame.NumberOfDrawCommands] = command
+    }
+
+    frame.NumberOfDrawCommands += 1;
+}
+
 State :: struct 
 {
     Canvas: Canvas,
     InputState: InputState,
-    Frame: Frame,
+    Frame: DrawFrame,
 
     ActiveId: DYID,
     IsActiveIdJustActivated: bool,
@@ -43,12 +89,6 @@ InputState :: struct
     LastMouseButtons: [NUMBER_OF_MOUSE_BUTTONS]bool,
     
     MousePosition: [2]f32
-}
-
-Frame :: struct 
-{
-    NumberOfButtons: int,
-    Buttons: [dynamic]ButtonData
 }
 
 LastItemData :: struct 
@@ -108,7 +148,7 @@ NewFrame :: proc()
     
 
     // Clear button states
-    state.Frame.NumberOfButtons = 0
+    state.Frame.NumberOfDrawCommands = 0
 
     // Clear last item data states
     state.LastItemData.Id = 0
@@ -215,14 +255,8 @@ Button :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> b
     isClicked : bool = false;
     id : DYID = getID(label)
     
-    if (state.Frame.NumberOfButtons >= len(state.Frame.Buttons)) 
-    {
-        append(&state.Frame.Buttons, ButtonData {})
-    }
-
     rect := Rect{Position=position, Size=size}
-    button : ^ButtonData = &state.Frame.Buttons[state.Frame.NumberOfButtons]    
-    state.Frame.NumberOfButtons += 1
+    finalColor : [4]u8 = color
 
     addItem(rect, id)
 
@@ -261,22 +295,19 @@ Button :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> b
     }
 
     // Set color based on the state
-    button.Rect = rect
     if (isHovered) 
     {
         if (state.ActiveId == id) 
         {
-            button.Color.rgba = { 120, 120, 120, 255 }
+            finalColor = { 120, 120, 120, 255 }
         }
         else 
         {
-            button.Color.rgba = { 255, 255, 255, 255 }
+            finalColor = { 255, 255, 255, 255 }
         }
-    } 
-    else 
-    {
-        button.Color.rgba = color
     }
+
+    addCommandToFrame(RectangleDrawData { Rect = rect, Color = finalColor }, &state.Frame)
 
     return isClicked
 }

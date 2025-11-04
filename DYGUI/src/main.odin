@@ -1,7 +1,11 @@
 package main
 
+import "base:runtime"
+import "core:c"
 import "core:fmt"
 import "vendor:sdl3"
+import "vendor:sdl3/ttf"
+
 import dygui "dygui"
 
 movingButtonPos : [2]f32 = { 50, 100 }
@@ -9,12 +13,16 @@ movingSpeed : f32 = 50
 
 main :: proc() 
 {
+	typeId := typeid_of(dygui.Rect)
+	info := type_info_of(typeId)
+
+
 	timeLastFrame : u64 = 0
 	time : u64 = 0
 
 	if (!sdl3.SetAppMetadata("DYGUI", "0.1.0", "com.ta-david-ui.dygui")) 
 	{
-		sdl3.Log("Failed to set metadata");
+		sdl3.Log("Failed to set metadata")
 	}
 
 	if (!sdl3.Init(sdl3.INIT_VIDEO)) 
@@ -24,7 +32,22 @@ main :: proc()
 	}
 	defer sdl3.Quit()
 
-	window : ^sdl3.Window = sdl3.CreateWindow("DYGUI", 640, 480, sdl3.WINDOW_RESIZABLE);
+	ttfResult := ttf.Init()
+	if (!ttfResult) 
+	{
+		sdl3.Log("Couldn't initialize ttf")
+		return
+	}
+
+	font : ^ttf.Font = ttf.OpenFont("fonts/Courgette-Regular.ttf", 32)
+	if (font == nil)
+	{
+		sdl3.Log("Failed to load ttf font file")
+		return
+	}
+	defer ttf.CloseFont(font)
+
+	window : ^sdl3.Window = sdl3.CreateWindow("DYGUI", 640, 480, sdl3.WINDOW_RESIZABLE)
 	if (window == nil)
 	{
 		sdl3.Log(sdl3.GetError())
@@ -116,15 +139,37 @@ main :: proc()
 		sdl3.RenderClear(renderer)
 
 		frame := &dygui.GetState().Frame
-		for i := 0; i < frame.NumberOfButtons; i += 1 
+		for i := 0; i < frame.NumberOfDrawCommands; i += 1 
 		{
-			button := frame.Buttons[i];
-			sdl3.SetRenderDrawColor(renderer, button.Color.r, button.Color.g, button.Color.b, sdl3.ALPHA_OPAQUE)
-			rect : sdl3.FRect = sdl3.FRect {}
-			rect.x, rect.y = button.Rect.Position.x, button.Rect.Position.y
-			rect.w, rect.h = button.Rect.Size.x, button.Rect.Size.y
-			sdl3.RenderFillRect(renderer, &rect)
+			drawCommand := frame.DrawCommands[i]
+			switch drawData in drawCommand.Data
+			{
+				case dygui.RectangleDrawData:
+					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, sdl3.ALPHA_OPAQUE)
+					rect := sdl3.FRect {}
+					rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
+					rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
+					sdl3.RenderFillRect(renderer, &rect)
+				case dygui.TextDrawData:
+			}
 		}
+
+
+		measuredTextWidth, measuredTextHeight : c.int = 0, 0
+		getSizeResult := ttf.GetStringSize(font, "Hello World...", 0, &measuredTextWidth, &measuredTextHeight)
+
+		textSurface : ^sdl3.Surface = ttf.RenderText_Blended(font, "Hello World...", 0, sdl3.Color { 255, 255, 255, 255 })
+		defer sdl3.DestroySurface(textSurface)
+		
+		textTexture : ^sdl3.Texture = sdl3.CreateTextureFromSurface(renderer, textSurface)
+		defer sdl3.DestroyTexture(textTexture)
+
+		textWidth, textHeight : f32 = 0, 0
+		sdl3.GetTextureSize(textTexture, &textWidth, &textHeight)
+		textRect := sdl3.FRect { x=100, y=100, w=textWidth, h=textHeight }
+		sdl3.RenderTexture(renderer, textTexture, nil, &textRect)
+
+		//fmt.println("M: ", measuredTextWidth, ", ", measuredTextHeight, " R: ", textWidth, ", ", textHeight);
 
 		/*
 		rect : sdl3.FRect = sdl3.FRect {}
