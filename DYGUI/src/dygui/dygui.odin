@@ -6,6 +6,8 @@ NUMBER_OF_MOUSE_BUTTONS :: 5
 
 DYID :: distinct u32
 
+Dimensions :: distinct [2]f32
+
 Rect :: struct 
 {
     Position: [2]f32,
@@ -16,7 +18,8 @@ TextDrawData :: struct
 {
     TextRect: Rect,
     TextContent: string,
-    TextColor: [4]u8
+    TextColor: [4]u8,
+    FontConfig: FontConfig
 }
 
 RectangleDrawData :: struct 
@@ -59,9 +62,21 @@ addCommandToFrame :: proc (drawData: DrawData, frame: ^DrawFrame)
     frame.NumberOfDrawCommands += 1;
 }
 
+FontConfig :: struct 
+{
+    FontId: u16,
+    FontSize: u16
+}
+
+
+Style :: struct
+{
+    MainFontConfig : FontConfig,
+    FontConfigStack : [dynamic]FontConfig
+}
+
 State :: struct 
 {
-    Canvas: Canvas,
     InputState: InputState,
     Frame: DrawFrame,
 
@@ -75,7 +90,20 @@ State :: struct
     LastItemData: LastItemData,
 }
 
-g_State: State
+Functions :: struct 
+{
+    MeasureText: proc(textContent: string, fontConfig: FontConfig) -> Dimensions
+}
+
+GUIContext :: struct
+{
+    Canvas: Canvas,
+    Style: Style,
+    Functions: Functions,
+    State: State
+}
+
+g_Context: GUIContext
 
 Canvas :: struct 
 {
@@ -103,32 +131,40 @@ ButtonData :: struct
     Color: [4]u8
 }
 
+GetGUIContext :: proc() -> ^GUIContext
+{
+    return &g_Context
+}
+
 GetState :: proc() -> ^State 
 {
-    return &g_State;
+    return &g_Context.State;
 }
 
 GetInputState :: proc() -> ^InputState 
 {
-    return &g_State.InputState
+    return &g_Context.State.InputState
 }
 
 @(private)
 wasMouseButtonDownThisFrame :: proc(mouseButton: u8) -> bool 
 {
-    return g_State.InputState.MouseButtons[mouseButton] && !g_State.InputState.LastMouseButtons[mouseButton] 
+    inputState := GetInputState()
+    return inputState.MouseButtons[mouseButton] && !inputState.LastMouseButtons[mouseButton] 
 }
 
 @(private)
 wasMouseButtonUpThisFrame :: proc(mouseButton: u8) -> bool 
 {
-    return !g_State.InputState.MouseButtons[mouseButton] && g_State.InputState.LastMouseButtons[mouseButton] 
+    inputState := GetInputState()
+    return !inputState.MouseButtons[mouseButton] && inputState.LastMouseButtons[mouseButton] 
 }
 
 @(private)
 isMouseButtonDown :: proc(mouseButton: u8) -> bool 
 {
-    return g_State.InputState.MouseButtons[mouseButton]
+    inputState := GetInputState()
+    return inputState.MouseButtons[mouseButton]
 }
 
 @(private)
@@ -139,7 +175,12 @@ getID :: proc(label: string) -> DYID
 
 Init :: proc(canvas: Canvas) 
 {
-    g_State.Canvas = canvas
+    g_Context.Canvas = canvas
+}
+
+SetMeasureTextFunction :: proc(func: proc(textContent: string, fontConfig: FontConfig) -> Dimensions)
+{
+    g_Context.Functions.MeasureText = func
 }
 
 NewFrame :: proc() 
@@ -242,13 +283,46 @@ addItem :: proc(rect: Rect, id: DYID)
     state.LastItemData.Rect = rect
 }
 
+SetMainFontConfig :: proc(fontConfig: FontConfig)
+{
+    GetGUIContext().Style.MainFontConfig = fontConfig
+}
+
+PushFontConfig :: proc(fontConfig: FontConfig)
+{
+    append(&GetGUIContext().Style.FontConfigStack, fontConfig)
+}
+
+PopFontConfig :: proc(count: int = 1)
+{
+    state := GetState()
+    for i := 0; i < count; i += 1
+    {
+        pop(&GetGUIContext().Style.FontConfigStack)
+    }
+}
+
+getCurrentFontConfig :: proc() -> FontConfig
+{
+    guiContext := GetGUIContext()
+    length := len(guiContext.Style.FontConfigStack)
+    if (length > 0)
+    {
+        return guiContext.Style.FontConfigStack[length - 1]
+    }
+    else 
+    {
+        return guiContext.Style.MainFontConfig
+    }
+}
+
 IsItemHovered :: proc() -> bool
 {
     state := GetState()
     return state.HoveredId == state.LastItemData.Id
 }
 
-Button :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> bool 
+ColorButton :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> bool 
 {
     state := GetState()
 
@@ -308,6 +382,76 @@ Button :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8) -> b
     }
 
     addCommandToFrame(RectangleDrawData { Rect = rect, Color = finalColor }, &state.Frame)
+
+    return isClicked
+}
+
+Button :: proc(label: string, textColor: [4]u8, position: [2]f32) -> bool
+{
+    state := GetState()
+
+    isClicked : bool = false;
+    id : DYID = getID(label)
+    
+    guiContext := GetGUIContext()
+    fontConfig := getCurrentFontConfig()
+    dimensions := guiContext.Functions.MeasureText(label, fontConfig)
+
+    rect := Rect{Position=position, Size=dimensions.xy}
+    textColor : [4]u8 = textColor
+    backgroundColor : [4]u8 = { 120, 0, 0, 255 }
+
+    addItem(rect, id)
+
+    mouseButton : u8 = 0
+    // Handle the case where the user pointer is within the hoverable rect
+    isHovered: bool = isPointInRect(state.InputState.MousePosition, rect)
+    if (isHovered) 
+    {
+        setHoveredId(id)
+
+        isMouseDown := wasMouseButtonDownThisFrame(mouseButton)
+        if (isMouseDown) 
+        {
+            setActiveId(id)
+        }
+
+        isMouseUp := wasMouseButtonUpThisFrame(mouseButton)
+        if (isMouseUp) 
+        {
+            isClicked = true
+            clearActiveId()
+        }
+    }
+    
+    // Handle the case where the user has pressed down on the button but haven't released it yet.
+    if (state.ActiveId == id) 
+    {
+        if (isMouseButtonDown(mouseButton)) 
+        {
+            // TODO: the user is still holding the button
+        }  
+        else 
+        {
+            clearActiveId()
+        }
+    }
+
+    // Set color based on the state
+    if (isHovered) 
+    {
+        if (state.ActiveId == id) 
+        {
+            backgroundColor = { 160, 0, 0, 255 }
+        }
+        else 
+        {
+            backgroundColor = { 255, 0, 0, 255 }
+        }
+    }
+
+    addCommandToFrame(RectangleDrawData { Rect = rect, Color = backgroundColor }, &state.Frame)
+    addCommandToFrame(TextDrawData { TextRect = rect, TextColor = textColor, TextContent = label, FontConfig = fontConfig }, &state.Frame)
 
     return isClicked
 }
