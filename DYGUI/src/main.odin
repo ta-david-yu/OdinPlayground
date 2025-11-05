@@ -206,7 +206,7 @@ main :: proc()
 		dygui.EndFrame()
 
 		// Render
-		sdl3.SetRenderDrawColor(renderer, 0, 0, 0, sdl3.ALPHA_OPAQUE)
+		sdl3.SetRenderDrawColor(renderer, 20, 20, 20, sdl3.ALPHA_OPAQUE)
 		sdl3.RenderClear(renderer)
 
 		frame := &dygui.GetState().Frame
@@ -216,7 +216,8 @@ main :: proc()
 			switch drawData in drawCommand.Data
 			{
 				case dygui.RectangleDrawData:
-					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, sdl3.ALPHA_OPAQUE)
+					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
+					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
 					rect := sdl3.FRect {}
 					rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
 					rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
