@@ -103,13 +103,14 @@ main :: proc()
 	if (renderer == nil) 
 	{
 		sdl3.Log(sdl3.GetError())
+		return
 	}
-
 	sdl3.SetRenderLogicalPresentation(renderer, 640, 480, sdl3.RendererLogicalPresentation.LETTERBOX)
+	defer sdl3.DestroyRenderer(renderer)
 
-	x, y : f32 = 100, 100
+	textEngine : ^ttf.TextEngine = ttf.CreateRendererTextEngine(renderer)
+	defer ttf.DestroyRendererTextEngine(textEngine)
 
-	
 	dygui.Init(dygui.Canvas{Width=640, Height=480})
 	dygui.SetMeasureTextFunction(measureText)
 	dygui.SetMainFontConfig({ FontId = 0, FontSize = 18 })
@@ -125,8 +126,8 @@ main :: proc()
 				case .QUIT:
 					return
 				case .MOUSE_MOTION:
-					x = event.button.x
-					y = event.button.y
+					x := event.button.x
+					y := event.button.y
 					dygui.GetInputState().MousePosition = { x, y }
 					break
 				case .MOUSE_BUTTON_DOWN:
@@ -216,20 +217,13 @@ main :: proc()
 					needToChangeFontSize : bool = currentFontSize != targetMeasureFontSize
 					if (needToChangeFontSize)
 					{
-						if (!ttf.SetFontSize(font, targetMeasureFontSize))
-						{
-							// TODO: error handling
-						}
+						if (!ttf.SetFontSize(font, targetMeasureFontSize)) { break }
 					}
 					textContentInCStr := strings.clone_to_cstring(drawData.TextContent, context.temp_allocator)
-					textSurface : ^sdl3.Surface = ttf.RenderText_Blended(font, textContentInCStr, 0, drawData.TextColor.rgba)
-					defer sdl3.DestroySurface(textSurface)
-					
-					textTexture : ^sdl3.Texture = sdl3.CreateTextureFromSurface(renderer, textSurface)
-					defer sdl3.DestroyTexture(textTexture)
+					ttfText : ^ttf.Text = ttf.CreateText(textEngine, font, textContentInCStr, 0)
+					defer ttf.DestroyText(ttfText)
 
-					textRect := sdl3.FRect { x=drawData.TextRect.Position.x, y=drawData.TextRect.Position.y, w=drawData.TextRect.Size.x, h=drawData.TextRect.Size.y }
-					sdl3.RenderTexture(renderer, textTexture, nil, &textRect)
+					result := ttf.DrawRendererText(ttfText, drawData.TextRect.Position.x, drawData.TextRect.Position.y)
 			}
 		}
 
