@@ -68,11 +68,33 @@ FontConfig :: struct
     FontSize: u16
 }
 
-
 Style :: struct
 {
+
     MainFontConfig : FontConfig,
-    FontConfigStack : [dynamic]FontConfig
+    FontConfigStack : [dynamic]FontConfig,
+
+    Colors : struct 
+    {
+        Button : struct 
+        {
+            Idle : [4]u8,
+            Hovered : [4]u8,
+            Active : [4]u8,
+            Text : [4]u8
+        }
+    },
+
+    Variables : struct
+    {
+        Button : struct 
+        {
+            FramePaddingTop : f32,
+            FramePaddingBottom : f32,
+            FramePaddingLeft : f32,
+            FramePaddingRight : f32,
+        }
+    }
 }
 
 State :: struct 
@@ -138,7 +160,12 @@ GetGUIContext :: proc() -> ^GUIContext
 
 GetState :: proc() -> ^State 
 {
-    return &g_Context.State;
+    return &g_Context.State
+}
+
+GetStyle :: proc() -> ^Style
+{
+    return &g_Context.Style
 }
 
 GetInputState :: proc() -> ^InputState 
@@ -187,7 +214,6 @@ NewFrame :: proc()
 {
     state := GetState()
     
-
     // Clear button states
     state.Frame.NumberOfDrawCommands = 0
 
@@ -386,8 +412,9 @@ ColorButton :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8)
     return isClicked
 }
 
-Button :: proc(label: string, textColor: [4]u8, position: [2]f32) -> bool
+Button :: proc(label: string, position: [2]f32) -> bool
 {
+    style := GetStyle()
     state := GetState()
 
     isClicked : bool = false;
@@ -395,17 +422,19 @@ Button :: proc(label: string, textColor: [4]u8, position: [2]f32) -> bool
     
     guiContext := GetGUIContext()
     fontConfig := getCurrentFontConfig()
-    dimensions := guiContext.Functions.MeasureText(label, fontConfig)
+    textDimensions := guiContext.Functions.MeasureText(label, fontConfig)
 
-    rect := Rect{Position=position, Size=dimensions.xy}
-    textColor : [4]u8 = textColor
-    backgroundColor : [4]u8 = { 120, 0, 0, 255 }
+    xPadding := style.Variables.Button.FramePaddingLeft + style.Variables.Button.FramePaddingRight
+    yPadding := style.Variables.Button.FramePaddingTop + style.Variables.Button.FramePaddingBottom
 
-    addItem(rect, id)
+    textRect := Rect{Position=position + {style.Variables.Button.FramePaddingLeft, style.Variables.Button.FramePaddingTop}, Size=textDimensions.xy}
+    fullRect := Rect{Position=position, Size=textDimensions.xy + {xPadding, yPadding}}
+    addItem(fullRect, id)
 
     mouseButton : u8 = 0
+
     // Handle the case where the user pointer is within the hoverable rect
-    isHovered: bool = isPointInRect(state.InputState.MousePosition, rect)
+    isHovered: bool = isPointInRect(state.InputState.MousePosition, fullRect)
     if (isHovered) 
     {
         setHoveredId(id)
@@ -438,20 +467,21 @@ Button :: proc(label: string, textColor: [4]u8, position: [2]f32) -> bool
     }
 
     // Set color based on the state
+    backgroundColor : [4]u8 = style.Colors.Button.Idle
     if (isHovered) 
     {
         if (state.ActiveId == id) 
         {
-            backgroundColor = { 160, 0, 0, 255 }
+            backgroundColor = style.Colors.Button.Active
         }
         else 
         {
-            backgroundColor = { 255, 0, 0, 255 }
+            backgroundColor = style.Colors.Button.Hovered
         }
     }
 
-    addCommandToFrame(RectangleDrawData { Rect = rect, Color = backgroundColor }, &state.Frame)
-    addCommandToFrame(TextDrawData { TextRect = rect, TextColor = textColor, TextContent = label, FontConfig = fontConfig }, &state.Frame)
+    addCommandToFrame(RectangleDrawData { Rect = fullRect, Color = backgroundColor }, &state.Frame)
+    addCommandToFrame(TextDrawData { TextRect = textRect, TextColor = style.Colors.Button.Text, TextContent = label, FontConfig = fontConfig }, &state.Frame)
 
     return isClicked
 }

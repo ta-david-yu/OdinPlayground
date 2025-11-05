@@ -114,6 +114,17 @@ main :: proc()
 	dygui.Init(dygui.Canvas{Width=640, Height=480})
 	dygui.SetMeasureTextFunction(measureText)
 	dygui.SetMainFontConfig({ FontId = 0, FontSize = 18 })
+	
+	style := dygui.GetStyle()
+	style.Colors.Button.Text = { 0, 0, 0, 255 }
+	style.Colors.Button.Idle = { 150, 150, 150, 255 }
+	style.Colors.Button.Hovered = { 255, 255, 255, 255 }
+	style.Colors.Button.Active = { 200, 200, 200, 255 }
+
+	style.Variables.Button.FramePaddingBottom = 5
+	style.Variables.Button.FramePaddingTop = 5
+	style.Variables.Button.FramePaddingLeft = 5
+	style.Variables.Button.FramePaddingRight = 5
 
 	for 
 	{
@@ -179,16 +190,16 @@ main :: proc()
 				movingSpeed = 200
 			}
 
-			if (dygui.Button("Test Button", { 255, 255, 255, 255 }, { 300, 250 }))
+			if (dygui.Button("Test Button", { 300, 250 }))
 			{
 				fmt.println("Test Button with Text Pressed")
 			}
 
 			dygui.PushFontConfig({ FontId = 1, FontSize = 22 }) // Font Id 1 is for chinese.
 			
-			if (dygui.Button("中文按鈕", { 255, 255, 255, 255 }, { 400, 300 }))
+			if (dygui.Button("中文按鈕", { 400, 300 }))
 			{
-				fmt.println("Big Button with Text Pressed")
+				fmt.println("中文按鈕按下！")
 			}
 			dygui.PopFontConfig()
 		}
@@ -221,6 +232,7 @@ main :: proc()
 					}
 					textContentInCStr := strings.clone_to_cstring(drawData.TextContent, context.temp_allocator)
 					ttfText : ^ttf.Text = ttf.CreateText(textEngine, font, textContentInCStr, 0)
+					setColorResult := ttf.SetTextColor(ttfText, drawData.TextColor.r, drawData.TextColor.g, drawData.TextColor.b, drawData.TextColor.a)
 					defer ttf.DestroyText(ttfText)
 
 					result := ttf.DrawRendererText(ttfText, drawData.TextRect.Position.x, drawData.TextRect.Position.y)
