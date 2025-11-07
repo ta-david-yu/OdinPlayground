@@ -1,5 +1,7 @@
 package main
 
+import "core:math/rand"
+import "core:math"
 import "core:strings"
 import "base:runtime"
 import "core:c"
@@ -121,10 +123,12 @@ main :: proc()
 	style.Colors.Button.Hovered = { 255, 255, 255, 255 }
 	style.Colors.Button.Active = { 200, 200, 200, 255 }
 
-	style.Variables.Button.FramePaddingBottom = 5
-	style.Variables.Button.FramePaddingTop = 5
-	style.Variables.Button.FramePaddingLeft = 5
-	style.Variables.Button.FramePaddingRight = 5
+	style.Variables.Button.FramePaddingBottom = 10
+	style.Variables.Button.FramePaddingTop = 10
+	style.Variables.Button.FramePaddingLeft = 10
+	style.Variables.Button.FramePaddingRight = 10
+	style.Variables.Button.CornerRadius = { TL = 0, TR = 10, BR = 10, BL = 10 }
+	roundedRectColor : [4]u8 = { 0, 0, 0, 255 }
 
 	for 
 	{
@@ -197,16 +201,17 @@ main :: proc()
 
 			dygui.PushFontConfig({ FontId = 1, FontSize = 22 }) // Font Id 1 is for chinese.
 			
-			if (dygui.Button("中文按鈕", { 400, 300 }))
+			if (dygui.Button("改顏色", { 400, 300 }))
 			{
-				fmt.println("中文按鈕按下！")
+				roundedRectColor.rgb += 10
+				fmt.println(roundedRectColor)
 			}
 			dygui.PopFontConfig()
 		}
 		dygui.EndFrame()
 
 		// Render
-		sdl3.SetRenderDrawColor(renderer, 20, 20, 20, sdl3.ALPHA_OPAQUE)
+		sdl3.SetRenderDrawColor(renderer, roundedRectColor.r, roundedRectColor.g, roundedRectColor.b, sdl3.ALPHA_OPAQUE)
 		sdl3.RenderClear(renderer)
 
 		frame := &dygui.GetState().Frame
@@ -218,10 +223,19 @@ main :: proc()
 				case dygui.RectangleDrawData:
 					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
 					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
-					rect := sdl3.FRect {}
-					rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
-					rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
-					sdl3.RenderFillRect(renderer, &rect)
+					hasRoundedCorners : bool = drawData.CornerRadius.TL > 0 || drawData.CornerRadius.TR > 0 || drawData.CornerRadius.BR > 0 || drawData.CornerRadius.BL > 0;
+					
+					if (hasRoundedCorners)
+					{
+						drawRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color)
+					}
+					else
+					{
+						rect := sdl3.FRect {}
+						rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
+						rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
+						sdl3.RenderFillRect(renderer, &rect)
+					}
 				case dygui.TextDrawData:
 					font := fonts[drawData.FontConfig.FontId]
 					currentFontSize := ttf.GetFontSize(font)
@@ -247,4 +261,307 @@ main :: proc()
 
 		free_all(context.temp_allocator)
 	}
+}
+
+drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius: dygui.CornerRadius, color: [4]u8)
+{
+	ARC_SEGEMENT_COUNT :: 16
+
+	// 1 center rect + 4 fan corners
+	VERTEX_COUNT :: 4 + 4 * ((ARC_SEGEMENT_COUNT + 1) + 2)
+	
+	// 5 rects + 4 fan corners
+	INDICES_COUNT :: (5 * 2) * 3 + 4 * (ARC_SEGEMENT_COUNT + 2) * 3 
+
+	vertices : [VERTEX_COUNT][2]f32
+	indices : [INDICES_COUNT]c.int
+
+	// Clamp radius, the radius at the highest can only be rect.Size * 0.5
+	cornerRadius := cornerRadius // We will modify the radius later, hence we need to assign it to make it mutable here.
+	shortSideSizeHalved := (rect.Size.x < rect.Size.y? rect.Size.x : rect.Size.x) * 0.5
+	if (cornerRadius.TL > shortSideSizeHalved)
+	{
+		cornerRadius.TL = shortSideSizeHalved
+	}
+	if (cornerRadius.TR > shortSideSizeHalved)
+	{
+		cornerRadius.TR = shortSideSizeHalved
+	}
+	if (cornerRadius.BR > shortSideSizeHalved)
+	{
+		cornerRadius.BR = shortSideSizeHalved
+	}
+	if (cornerRadius.BL > shortSideSizeHalved)
+	{
+		cornerRadius.BL = shortSideSizeHalved
+	}
+
+	biggestRadius := cornerRadius.TL
+	if (cornerRadius.TR > biggestRadius)
+	{
+		biggestRadius = cornerRadius.TR
+	}
+	if (cornerRadius.BL > biggestRadius)
+	{
+		biggestRadius = cornerRadius.BL
+	}
+	if (cornerRadius.BR > biggestRadius)
+	{
+		biggestRadius = cornerRadius.BR
+	}
+
+	vertexCount, indexCount : c.int = 0, 0
+	
+	//    _4___________5_
+	//   / |           | \
+	//  |  |     T     |  |
+	// 11__0___________1__6
+	//  |  |           |  |
+	//  | L|     C     |R |
+	// 1|  |           |  |
+	// 10__3___________2__7
+	//  |  |     B     |  |
+	//   \_|___________|_/
+	//     9           8
+
+	// C
+	centerRect : dygui.Rect = { Position = rect.Position + { biggestRadius, biggestRadius }, Size = rect.Size - 2 * { biggestRadius, biggestRadius } }
+	{
+		vertices[vertexCount] = centerRect.Position; vertexCount += 1; 							// 0
+		vertices[vertexCount] = centerRect.Position + {centerRect.Size.x, 0}; vertexCount += 1;	// 1
+		vertices[vertexCount] = centerRect.Position + centerRect.Size; vertexCount += 1;		// 2
+		vertices[vertexCount] = centerRect.Position + {0, centerRect.Size.y}; vertexCount += 1;	// 3
+
+		indices[indexCount] = 0; indexCount += 1;
+		indices[indexCount] = 1; indexCount += 1;
+		indices[indexCount] = 3; indexCount += 1;
+		indices[indexCount] = 1; indexCount += 1;
+		indices[indexCount] = 2; indexCount += 1;
+		indices[indexCount] = 3; indexCount += 1;
+	}
+
+	// T, L, B, R
+	{
+		// Tl, Tr (4, 5)
+		vertices[vertexCount] = centerRect.Position + { 0, -biggestRadius }; vertexCount += 1;
+		vertices[vertexCount] = centerRect.Position + {centerRect.Size.x, 0} + { 0, -biggestRadius }; vertexCount += 1;
+		indices[indexCount] = 4; indexCount += 1;
+		indices[indexCount] = 5; indexCount += 1;
+		indices[indexCount] = 0; indexCount += 1;
+		indices[indexCount] = 5; indexCount += 1;
+		indices[indexCount] = 1; indexCount += 1;
+		indices[indexCount] = 0; indexCount += 1;
+
+		// Lt, Lb (6, 7)
+		vertices[vertexCount] = centerRect.Position + {centerRect.Size.x, 0} + { biggestRadius, 0 }; vertexCount += 1;
+		vertices[vertexCount] = centerRect.Position + centerRect.Size + { biggestRadius, 0 }; vertexCount += 1;
+		indices[indexCount] = 1; indexCount += 1;
+		indices[indexCount] = 6; indexCount += 1;
+		indices[indexCount] = 2; indexCount += 1;
+		indices[indexCount] = 6; indexCount += 1;
+		indices[indexCount] = 7; indexCount += 1;
+		indices[indexCount] = 2; indexCount += 1;
+
+		// Br, Bl (8, 9)
+		vertices[vertexCount] = centerRect.Position + centerRect.Size + { 0, biggestRadius }; vertexCount += 1;
+		vertices[vertexCount] = centerRect.Position + { 0, centerRect.Size.y } + { 0, biggestRadius }; vertexCount += 1;
+		indices[indexCount] = 3; indexCount += 1;
+		indices[indexCount] = 2; indexCount += 1;
+		indices[indexCount] = 9; indexCount += 1;
+		indices[indexCount] = 2; indexCount += 1;
+		indices[indexCount] = 9; indexCount += 1;
+		indices[indexCount] = 8; indexCount += 1;
+		
+		// Rb, Rt (10, 11)
+		vertices[vertexCount] = centerRect.Position + { 0, centerRect.Size.y } + { -biggestRadius, 0 }; vertexCount += 1;
+		vertices[vertexCount] = centerRect.Position + { -biggestRadius, 0 }; vertexCount += 1;
+		indices[indexCount] = 11; indexCount += 1;
+		indices[indexCount] = 0; indexCount += 1;
+		indices[indexCount] = 10; indexCount += 1;
+		indices[indexCount] = 0; indexCount += 1;
+		indices[indexCount] = 3; indexCount += 1;
+		indices[indexCount] = 10; indexCount += 1;
+	}
+
+	// TL Fan
+	{
+		START_ANGLE_IN_DEGREE :: 180.0
+		END_ANGLE_IN_DEGREE :: 90.0
+		ANGLE_STEP :: (END_ANGLE_IN_DEGREE - START_ANGLE_IN_DEGREE) / ARC_SEGEMENT_COUNT
+		radius := cornerRadius.TL
+		fanCenter : [2]f32 = rect.Position + { radius, radius }  
+		cornerVertexIndex : c.int = 0
+		arcStartingEdgeVertexIndex : c.int = 11
+		arcEndingEdgeVertexIndex : c.int = 4
+
+		// Populate vertices
+		startingVertexIndex := vertexCount
+		for i := 0; i < ARC_SEGEMENT_COUNT + 1; i += 1
+		{
+			angleInRadian := math.to_radians(START_ANGLE_IN_DEGREE + ANGLE_STEP * cast(f32) i)
+
+			// We need to negate the y value because up is negative Y; While in a trigonometric cooridnate system, up is positive Y.
+			x := math.cos(angleInRadian) * radius
+			y := -math.sin(angleInRadian) * radius
+			vertices[vertexCount] = fanCenter + {x, y}; vertexCount += 1;
+		}
+
+		// Populate triangles of the fan
+		for i : c.int = 0; i < ARC_SEGEMENT_COUNT; i += 1 
+		{
+			indices[indexCount] = startingVertexIndex + i; indexCount += 1;
+			indices[indexCount] = startingVertexIndex + i + 1; indexCount += 1;
+			indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		}
+
+		// Populate triangles that connect the side rects with the fan
+		indices[indexCount] = arcStartingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = startingVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		
+		indices[indexCount] = startingVertexIndex + ARC_SEGEMENT_COUNT; indexCount += 1;
+		indices[indexCount] = arcEndingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+	}
+
+	// TR Fan
+	{
+		START_ANGLE_IN_DEGREE :: 90.0
+		END_ANGLE_IN_DEGREE :: 0.0
+		ANGLE_STEP :: (END_ANGLE_IN_DEGREE - START_ANGLE_IN_DEGREE) / ARC_SEGEMENT_COUNT
+		radius := cornerRadius.TR
+		fanCenter : [2]f32 = rect.Position + { rect.Size.x, 0 } + { -radius, radius }  
+		cornerVertexIndex : c.int = 1
+		arcStartingEdgeVertexIndex : c.int = 5
+		arcEndingEdgeVertexIndex : c.int = 6
+
+		// Populate vertices
+		startingVertexIndex := vertexCount
+		for i := 0; i < ARC_SEGEMENT_COUNT + 1; i += 1
+		{
+			angleInRadian := math.to_radians(START_ANGLE_IN_DEGREE + ANGLE_STEP * cast(f32) i)
+
+			// We need to negate the y value because up is negative Y; While in a trigonometric cooridnate system, up is positive Y.
+			x := math.cos(angleInRadian) * radius
+			y := -math.sin(angleInRadian) * radius
+			vertices[vertexCount] = fanCenter + {x, y}; vertexCount += 1;
+		}
+
+		// Populate triangles of the fan
+		for i : c.int = 0; i < ARC_SEGEMENT_COUNT; i += 1 
+		{
+			indices[indexCount] = startingVertexIndex + i; indexCount += 1;
+			indices[indexCount] = startingVertexIndex + i + 1; indexCount += 1;
+			indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		}
+
+		// Populate triangles that connect the side rects with the fan
+		indices[indexCount] = arcStartingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = startingVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		
+		indices[indexCount] = startingVertexIndex + ARC_SEGEMENT_COUNT; indexCount += 1;
+		indices[indexCount] = arcEndingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+	}
+
+	// BR Fan
+	{
+		START_ANGLE_IN_DEGREE :: 0.0
+		END_ANGLE_IN_DEGREE :: -90.0
+		ANGLE_STEP :: (END_ANGLE_IN_DEGREE - START_ANGLE_IN_DEGREE) / ARC_SEGEMENT_COUNT
+		radius := cornerRadius.BR
+		fanCenter : [2]f32 = rect.Position + rect.Size - { radius, radius }  
+		cornerVertexIndex : c.int = 2
+		arcStartingEdgeVertexIndex : c.int = 7
+		arcEndingEdgeVertexIndex : c.int = 8
+
+		// Populate vertices
+		startingVertexIndex := vertexCount
+		for i := 0; i < ARC_SEGEMENT_COUNT + 1; i += 1
+		{
+			angleInRadian := math.to_radians(START_ANGLE_IN_DEGREE + ANGLE_STEP * cast(f32) i)
+
+			// We need to negate the y value because up is negative Y; While in a trigonometric cooridnate system, up is positive Y.
+			x := math.cos(angleInRadian) * radius
+			y := -math.sin(angleInRadian) * radius
+			vertices[vertexCount] = fanCenter + {x, y}; vertexCount += 1;
+		}
+
+		// Populate triangles of the fan
+		for i : c.int = 0; i < ARC_SEGEMENT_COUNT; i += 1 
+		{
+			indices[indexCount] = startingVertexIndex + i; indexCount += 1;
+			indices[indexCount] = startingVertexIndex + i + 1; indexCount += 1;
+			indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		}
+
+		// Populate triangles that connect the side rects with the fan
+		indices[indexCount] = arcStartingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = startingVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		
+		indices[indexCount] = startingVertexIndex + ARC_SEGEMENT_COUNT; indexCount += 1;
+		indices[indexCount] = arcEndingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+	}
+
+	// BL Fan
+	{
+		START_ANGLE_IN_DEGREE :: -90.0
+		END_ANGLE_IN_DEGREE :: -180.0
+		ANGLE_STEP :: (END_ANGLE_IN_DEGREE - START_ANGLE_IN_DEGREE) / ARC_SEGEMENT_COUNT
+		radius := cornerRadius.BL
+		fanCenter : [2]f32 = rect.Position + { 0, rect.Size.y } + { radius, -radius }  
+		cornerVertexIndex : c.int = 3
+		arcStartingEdgeVertexIndex : c.int = 9
+		arcEndingEdgeVertexIndex : c.int = 10
+
+		// Populate vertices
+		startingVertexIndex := vertexCount
+		for i := 0; i < ARC_SEGEMENT_COUNT + 1; i += 1
+		{
+			angleInRadian := math.to_radians(START_ANGLE_IN_DEGREE + ANGLE_STEP * cast(f32) i)
+
+			// We need to negate the y value because up is negative Y; While in a trigonometric cooridnate system, up is positive Y.
+			x := math.cos(angleInRadian) * radius
+			y := -math.sin(angleInRadian) * radius
+			vertices[vertexCount] = fanCenter + {x, y}; vertexCount += 1;
+		}
+
+		// Populate triangles of the fan
+		for i : c.int = 0; i < ARC_SEGEMENT_COUNT; i += 1 
+		{
+			indices[indexCount] = startingVertexIndex + i; indexCount += 1;
+			indices[indexCount] = startingVertexIndex + i + 1; indexCount += 1;
+			indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		}
+
+		// Populate triangles that connect the side rects with the fan
+		indices[indexCount] = arcStartingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = startingVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+		
+		indices[indexCount] = startingVertexIndex + ARC_SEGEMENT_COUNT; indexCount += 1;
+		indices[indexCount] = arcEndingEdgeVertexIndex; indexCount += 1;
+		indices[indexCount] = cornerVertexIndex; indexCount += 1;
+	}
+
+	sdlVertices : [VERTEX_COUNT]sdl3.Vertex
+	for i : c.int = 0; i < vertexCount; i += 1 
+	{
+		fColor : sdl3.FColor = { cast(f32)color.r / 255, cast(f32)color.g / 255, cast(f32)color.b / 255, cast(f32)color.a / 255 }
+		sdlVertices[i] = { position = cast(sdl3.FPoint) vertices[i], color = fColor, tex_coord = {0, 0} }
+	}
+	sdl3.RenderGeometry(renderer, nil, &sdlVertices[0], vertexCount, &indices[0], indexCount)
+
+	/*
+	// Debug
+	sdlPoints : [VERTEX_COUNT]sdl3.FPoint
+	for i : c.int = 0; i < vertexCount; i += 1 
+	{
+		sdlPoints[i] = cast(sdl3.FPoint) vertices[i]
+	} 
+	sdl3.SetRenderDrawColor(renderer, 255, 255, 255, sdl3.ALPHA_OPAQUE)
+	sdl3.RenderPoints(renderer, &sdlPoints[12], vertexCount - 12)*/
 }

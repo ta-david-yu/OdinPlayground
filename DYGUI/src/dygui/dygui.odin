@@ -22,10 +22,19 @@ TextDrawData :: struct
     FontConfig: FontConfig
 }
 
+CornerRadius :: struct 
+{
+    TL: f32,
+    TR: f32,
+    BR: f32,
+    BL: f32
+}
+
 RectangleDrawData :: struct 
 {
     Rect: Rect,
-    Color: [4]u8
+    Color: [4]u8,
+    CornerRadius: CornerRadius
 }
 
 DrawData :: union 
@@ -93,6 +102,7 @@ Style :: struct
             FramePaddingBottom : f32,
             FramePaddingLeft : f32,
             FramePaddingRight : f32,
+            CornerRadius : CornerRadius
         }
     }
 }
@@ -480,7 +490,8 @@ Button :: proc(label: string, position: [2]f32) -> bool
         }
     }
 
-    addCommandToFrame(RectangleDrawData { Rect = fullRect, Color = backgroundColor }, &state.Frame)
+    radius := style.Variables.Button.CornerRadius
+    addCommandToFrame(RectangleDrawData { Rect = fullRect, Color = backgroundColor, CornerRadius = radius }, &state.Frame)
     addCommandToFrame(TextDrawData { TextRect = textRect, TextColor = style.Colors.Button.Text, TextContent = label, FontConfig = fontConfig }, &state.Frame)
 
     return isClicked
