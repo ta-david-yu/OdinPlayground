@@ -1,6 +1,5 @@
 package main
 
-import "core:math/rand"
 import "core:math"
 import "core:strings"
 import "base:runtime"
@@ -122,14 +121,17 @@ main :: proc()
 	style.Colors.Button.Idle = { 150, 150, 150, 255 }
 	style.Colors.Button.Hovered = { 255, 255, 255, 255 }
 	style.Colors.Button.Active = { 200, 200, 200, 255 }
+	style.Colors.Shadow = { 0, 0, 0, 128 }
 
 	style.Variables.Button.FramePaddingBottom = 10
 	style.Variables.Button.FramePaddingTop = 10
 	style.Variables.Button.FramePaddingLeft = 10
 	style.Variables.Button.FramePaddingRight = 10
 	style.Variables.Button.CornerRadius = { TL = 0, TR = 10, BR = 10, BL = 10 }
-	roundedRectColor : [4]u8 = { 0, 0, 0, 255 }
-
+	style.Variables.Shadow.Offset = { 3, 4 }
+	style.Variables.Shadow.Softness = 0
+	
+	roundedRectColor : [4]u8 = { 128, 128, 128, 255 }
 	for 
 	{
 		// Event
@@ -207,7 +209,7 @@ main :: proc()
 			
 			if (dygui.Button("改顏色", { 400, 300 }))
 			{
-				roundedRectColor.rgb += 10
+				roundedRectColor.r += 10
 				fmt.println(roundedRectColor)
 			}
 			dygui.PopFontConfig()

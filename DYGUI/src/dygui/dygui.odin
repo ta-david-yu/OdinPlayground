@@ -85,6 +85,7 @@ Style :: struct
 
     Colors : struct 
     {
+        Shadow : [4]u8,
         Button : struct 
         {
             Idle : [4]u8,
@@ -96,6 +97,11 @@ Style :: struct
 
     Variables : struct
     {
+        Shadow : struct 
+        {
+            Offset : [2]f32,
+            Softness : u8
+        },
         Button : struct 
         {
             FramePaddingTop : f32,
@@ -490,8 +496,35 @@ Button :: proc(label: string, position: [2]f32) -> bool
         }
     }
 
-    radius := style.Variables.Button.CornerRadius
-    addCommandToFrame(RectangleDrawData { Rect = fullRect, Color = backgroundColor, CornerRadius = radius }, &state.Frame)
+    cornerRadius := style.Variables.Button.CornerRadius
+
+    if (style.Variables.Shadow.Offset.x > 0 || style.Variables.Shadow.Offset.y > 0)
+    {
+        hardShadow : bool = style.Variables.Shadow.Softness == 0 
+        if (hardShadow)
+        {
+            shadowRect := fullRect
+            shadowRect.Position += style.Variables.Shadow.Offset 
+            addCommandToFrame(RectangleDrawData { Rect = shadowRect, Color = style.Colors.Shadow, CornerRadius = cornerRadius }, &state.Frame)
+        }
+        else // We use multiple layered transparent rectangles to achieve shadow 
+        {
+            mainShadowRect := fullRect
+            mainShadowRect.Position += style.Variables.Shadow.Offset 
+
+            layerColor := style.Colors.Shadow
+            layerColor /= style.Variables.Shadow.Softness
+            for i : u8 = 0; i < style.Variables.Shadow.Softness; i += 1
+            {
+                shadowLayerRect := mainShadowRect
+                shadowLayerRect.Position += cast(f32) i
+                shadowLayerRect.Size -= cast(f32) i * 2 
+                addCommandToFrame(RectangleDrawData { Rect = shadowLayerRect, Color = layerColor * i, CornerRadius = cornerRadius }, &state.Frame)
+            }
+        }
+    }
+
+    addCommandToFrame(RectangleDrawData { Rect = fullRect, Color = backgroundColor, CornerRadius = cornerRadius }, &state.Frame)
     addCommandToFrame(TextDrawData { TextRect = textRect, TextColor = style.Colors.Button.Text, TextContent = label, FontConfig = fontConfig }, &state.Frame)
 
     return isClicked
