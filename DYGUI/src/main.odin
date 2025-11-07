@@ -128,8 +128,8 @@ main :: proc()
 	style.Variables.Button.FramePaddingLeft = 10
 	style.Variables.Button.FramePaddingRight = 10
 	style.Variables.Button.CornerRadius = { TL = 0, TR = 10, BR = 10, BL = 10 }
-	style.Variables.Shadow.Offset = { 3, 4 }
-	style.Variables.Shadow.Softness = 0
+	style.Variables.Shadow.Offset = { 4, 5 }
+	style.Variables.Shadow.Softness = 5
 	
 	roundedRectColor : [4]u8 = { 128, 128, 128, 255 }
 	for 
