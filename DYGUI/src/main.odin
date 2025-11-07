@@ -151,6 +151,10 @@ main :: proc()
 				case .MOUSE_BUTTON_UP:
 					dygui.GetInputState().MouseButtons[event.button.button - 1] = false
 					break
+				case .WINDOW_RESIZED:
+					dygui.GetGUIContext().Canvas = { Width = cast(f32) event.window.data1, Height = cast(f32) event.window.data2 }
+					sdl3.SetRenderLogicalPresentation(renderer, event.window.data1, event.window.data2, sdl3.RendererLogicalPresentation.LETTERBOX)
+					break
 			}
 		}
 
