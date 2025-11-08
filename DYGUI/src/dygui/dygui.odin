@@ -30,16 +30,25 @@ CornerRadius :: struct
     BL: f32
 }
 
-RectangleDrawData :: struct 
+FilledRectangleDrawData :: struct 
 {
     Rect: Rect,
     Color: [4]u8,
     CornerRadius: CornerRadius
 }
 
+RectangleDrawData :: struct
+{
+    Rect: Rect,
+    Color: [4]u8,
+    CornerRadius: CornerRadius,
+    Thickness: f32
+}
+
 DrawData :: union 
 {
     TextDrawData,
+    FilledRectangleDrawData,
     RectangleDrawData
 }
 
@@ -88,10 +97,19 @@ Style :: struct
         Shadow : [4]u8,
         Button : struct 
         {
+            Text : [4]u8,
+
             Idle : [4]u8,
             Hovered : [4]u8,
             Active : [4]u8,
-            Text : [4]u8
+            
+            InnerBorderIdle : [4]u8,
+            InnerBorderHovered : [4]u8,
+            InnerBorderActive : [4]u8,
+            
+            OuterBorderIdle : [4]u8,
+            OuterBorderHovered : [4]u8,
+            OuterBorderActive : [4]u8,
         }
     },
 
@@ -108,7 +126,9 @@ Style :: struct
             FramePaddingBottom : f32,
             FramePaddingLeft : f32,
             FramePaddingRight : f32,
-            CornerRadius : CornerRadius
+            CornerRadius : CornerRadius,
+            InnerBorderThickness : u8,
+            OuterBorderThickness : u8
         }
     }
 }
@@ -423,7 +443,7 @@ ColorButton :: proc(label: string, position: [2]f32, size: [2]f32, color: [4]u8)
         }
     }
 
-    addCommandToFrame(RectangleDrawData { Rect = rect, Color = finalColor }, &state.Frame)
+    addCommandToFrame(FilledRectangleDrawData { Rect = rect, Color = finalColor }, &state.Frame)
 
     return isClicked
 }
@@ -450,7 +470,14 @@ Button :: proc(label: string, position: [2]f32) -> bool
     mouseButton : u8 = 0
 
     // Handle the case where the user pointer is within the hoverable rect
-    isHovered: bool = isPointInRect(state.InputState.MousePosition, fullRect)
+    pointerRect := fullRect
+    if (style.Variables.Button.OuterBorderThickness > 0)
+    {
+        pointerRect.Position -= cast(f32) style.Variables.Button.OuterBorderThickness
+        pointerRect.Size += cast(f32) style.Variables.Button.OuterBorderThickness * 2
+    }
+
+    isHovered: bool = isPointInRect(state.InputState.MousePosition, pointerRect)
     if (isHovered) 
     {
         setHoveredId(id)
@@ -484,20 +511,27 @@ Button :: proc(label: string, position: [2]f32) -> bool
 
     // Set color based on the state
     backgroundColor : [4]u8 = style.Colors.Button.Idle
+    innerBorderColor : [4]u8 = style.Colors.Button.InnerBorderIdle
+    outerBorderColor : [4]u8 = style.Colors.Button.OuterBorderIdle
     if (isHovered) 
     {
         if (state.ActiveId == id) 
         {
             backgroundColor = style.Colors.Button.Active
+            innerBorderColor = style.Colors.Button.InnerBorderActive
+            outerBorderColor = style.Colors.Button.OuterBorderActive
         }
         else 
         {
             backgroundColor = style.Colors.Button.Hovered
+            innerBorderColor = style.Colors.Button.InnerBorderHovered
+            outerBorderColor = style.Colors.Button.OuterBorderHovered
         }
     }
 
     cornerRadius := style.Variables.Button.CornerRadius
 
+    // Shadow
     if (style.Variables.Shadow.Offset.x > 0 || style.Variables.Shadow.Offset.y > 0)
     {
         hardShadow : bool = style.Variables.Shadow.Softness == 0 
@@ -505,7 +539,7 @@ Button :: proc(label: string, position: [2]f32) -> bool
         {
             shadowRect := fullRect
             shadowRect.Position += style.Variables.Shadow.Offset 
-            addCommandToFrame(RectangleDrawData { Rect = shadowRect, Color = style.Colors.Shadow, CornerRadius = cornerRadius }, &state.Frame)
+            addCommandToFrame(FilledRectangleDrawData { Rect = shadowRect, Color = style.Colors.Shadow, CornerRadius = cornerRadius }, &state.Frame)
         }
         else // We use multiple layered transparent rectangles to achieve shadow 
         {
@@ -519,12 +553,42 @@ Button :: proc(label: string, position: [2]f32) -> bool
                 shadowLayerRect := mainShadowRect
                 shadowLayerRect.Position += cast(f32) i
                 shadowLayerRect.Size -= cast(f32) i * 2 
-                addCommandToFrame(RectangleDrawData { Rect = shadowLayerRect, Color = layerColor * i, CornerRadius = cornerRadius }, &state.Frame)
+                addCommandToFrame(FilledRectangleDrawData { Rect = shadowLayerRect, Color = layerColor * i, CornerRadius = cornerRadius }, &state.Frame)
             }
         }
     }
 
-    addCommandToFrame(RectangleDrawData { Rect = fullRect, Color = backgroundColor, CornerRadius = cornerRadius }, &state.Frame)
+    // Background & Border if needed
+    if (style.Variables.Button.InnerBorderThickness == 0 && style.Variables.Button.OuterBorderThickness == 0)
+    {
+        backgroundRect := fullRect
+        addCommandToFrame(FilledRectangleDrawData { Rect = backgroundRect, Color = backgroundColor, CornerRadius = cornerRadius }, &state.Frame)
+    }
+    else 
+    {
+        // TODO: ok, this doesn't look as good as i expected
+        //       I will have to implement a proper rect border drawing command that will be handled manually by the backend renderer
+        if (style.Variables.Button.OuterBorderThickness > 0)
+        {
+            outerBorderRect := fullRect
+            outerBorderRect.Position -= cast(f32) style.Variables.Button.OuterBorderThickness
+            outerBorderRect.Size += cast(f32) style.Variables.Button.OuterBorderThickness * 2
+            addCommandToFrame(FilledRectangleDrawData { Rect = outerBorderRect, Color = outerBorderColor, CornerRadius = cornerRadius }, &state.Frame)
+        }
+
+        if (style.Variables.Button.InnerBorderThickness > 0)
+        {
+            innerBorderRect := fullRect
+            addCommandToFrame(FilledRectangleDrawData { Rect = innerBorderRect, Color = innerBorderColor, CornerRadius = cornerRadius }, &state.Frame)
+        }
+
+        backgroundRect := fullRect
+        backgroundRect.Position += cast(f32) style.Variables.Button.InnerBorderThickness
+        backgroundRect.Size -= cast(f32) style.Variables.Button.InnerBorderThickness * 2
+        addCommandToFrame(FilledRectangleDrawData { Rect = backgroundRect, Color = backgroundColor, CornerRadius = cornerRadius }, &state.Frame)
+    }
+
+    // Text
     addCommandToFrame(TextDrawData { TextRect = textRect, TextColor = style.Colors.Button.Text, TextContent = label, FontConfig = fontConfig }, &state.Frame)
 
     return isClicked

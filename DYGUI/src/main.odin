@@ -118,19 +118,29 @@ main :: proc()
 	
 	style := dygui.GetStyle()
 	style.Colors.Button.Text = { 0, 0, 0, 255 }
-	style.Colors.Button.Idle = { 150, 150, 150, 255 }
+	style.Colors.Button.Idle = { 180, 180, 180, 255 }
 	style.Colors.Button.Hovered = { 255, 255, 255, 255 }
 	style.Colors.Button.Active = { 200, 200, 200, 255 }
 	style.Colors.Shadow = { 0, 0, 0, 128 }
 
-	style.Variables.Button.FramePaddingBottom = 10
-	style.Variables.Button.FramePaddingTop = 10
+	style.Variables.Button.FramePaddingBottom = 5
+	style.Variables.Button.FramePaddingTop = 5
 	style.Variables.Button.FramePaddingLeft = 10
 	style.Variables.Button.FramePaddingRight = 10
-	style.Variables.Button.CornerRadius = { TL = 0, TR = 10, BR = 10, BL = 10 }
+	style.Variables.Button.CornerRadius = { TL = 0, TR = 10, BR = 0, BL = 0 }
 	style.Variables.Shadow.Offset = { 4, 5 }
 	style.Variables.Shadow.Softness = 5
+
+	style.Variables.Button.InnerBorderThickness = 2
+	style.Colors.Button.InnerBorderIdle = 255
+	style.Colors.Button.InnerBorderHovered = 255
+	style.Colors.Button.InnerBorderActive = 255
 	
+	style.Variables.Button.OuterBorderThickness = 2
+	style.Colors.Button.OuterBorderIdle = {0, 0, 0, 255}
+	style.Colors.Button.OuterBorderHovered = {0, 0, 0, 255}
+	style.Colors.Button.OuterBorderActive = {0, 0, 0, 255}
+
 	roundedRectColor : [4]u8 = { 128, 128, 128, 255 }
 	for 
 	{
@@ -226,14 +236,14 @@ main :: proc()
 			drawCommand := frame.DrawCommands[i]
 			switch drawData in drawCommand.Data
 			{
-				case dygui.RectangleDrawData:
+				case dygui.FilledRectangleDrawData:
 					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
 					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
+
 					hasRoundedCorners : bool = drawData.CornerRadius.TL > 0 || drawData.CornerRadius.TR > 0 || drawData.CornerRadius.BR > 0 || drawData.CornerRadius.BL > 0;
-					
 					if (hasRoundedCorners)
 					{
-						drawRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color)
+						drawFilledRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color)
 					}
 					else
 					{
@@ -257,9 +267,33 @@ main :: proc()
 					defer ttf.DestroyText(ttfText)
 
 					result := ttf.DrawRendererText(ttfText, drawData.TextRect.Position.x, drawData.TextRect.Position.y)
+				case dygui.RectangleDrawData:
+					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
+					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
+
+					hasRoundedCorners : bool = drawData.CornerRadius.TL > 0 || drawData.CornerRadius.TR > 0 || drawData.CornerRadius.BR > 0 || drawData.CornerRadius.BL > 0;
+					if (hasRoundedCorners)
+					{
+						drawRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color, drawData.Thickness)
+					}
+					else
+					{
+						rect := sdl3.FRect {}
+						rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
+						rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
+						sdl3.RenderRect(renderer, &rect)
+					}
+
 			}
 		}
 
+		drawArc(renderer, { 200, 200 }, 50, 20, { 255, 255, 255, 255 }, 0, 90)
+		//drawArc(renderer, { 200, 200 }, 100, 2, { 0, 255, 0, 255 }, 0, 270)
+		drawArc(renderer, { 200, 200 }, 50, 2, { 255, 0, 0, 255 }, 0, 270)
+		drawArc(renderer, { 100, 100 }, 50, 1, { 255, 0, 0, 255 }, 0, 270)
+		drawRoundedRect(renderer, { Position = { 300, 300 }, Size = {50, 50} }, { TL = 10, TR = 10, BR = 10, BL = 10 }, { 255, 255, 255, 255 }, 5)
+		drawRoundedRect(renderer, { Position = { 100, 300 }, Size = {150, 150} }, { TL = 10, TR = 10, BR = 10, BL = 10 }, { 255, 255, 255, 255 }, 2)
+		drawRoundedRect(renderer, { Position = { 400, 20 }, Size = {200, 100} }, { TL = 20, TR = 20, BR = 30, BL = 30 }, { 255, 255, 255, 255 }, 1)
 		sdl3.RenderPresent(renderer)
 
 		timeLastFrame = time
@@ -269,7 +303,7 @@ main :: proc()
 	}
 }
 
-drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius: dygui.CornerRadius, color: [4]u8)
+drawFilledRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius: dygui.CornerRadius, color: [4]u8)
 {
 	ARC_SEGEMENT_COUNT :: 16
 
@@ -570,4 +604,153 @@ drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius
 	} 
 	sdl3.SetRenderDrawColor(renderer, 255, 255, 255, sdl3.ALPHA_OPAQUE)
 	sdl3.RenderPoints(renderer, &sdlPoints[12], vertexCount - 12)*/
+}
+
+drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius: dygui.CornerRadius, color: [4]u8, thickness: f32)
+{
+	//    _4_____T_____5_
+	//   /               \
+	//  |                 |
+	// 11                 6
+	//  |                 |
+	//  L                 T
+	//  |                 |
+	// 10                 7
+	//  |                 |
+	//   \_ _____B_____ _/
+	//     9           8
+
+	// Edges
+	{
+		sdl3.SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+
+		// T
+		{
+			position := rect.Position + { cornerRadius.TL, 0 }
+			size : [2]f32 = { rect.Size.x - cornerRadius.TL - cornerRadius.TR, thickness }
+
+			lineRect : sdl3.FRect = { x = position.x, y = position.y, w = size.x, h = size.y }
+			sdl3.RenderFillRect(renderer, &lineRect)
+		}
+		
+		// R
+		{
+			position := rect.Position + { rect.Size.x - thickness, 0 } + { 0, cornerRadius.TR }
+			size : [2]f32 = { thickness, rect.Size.y - cornerRadius.TR - cornerRadius.BR }
+
+			lineRect : sdl3.FRect = { x = position.x, y = position.y, w = size.x, h = size.y }
+			sdl3.RenderFillRect(renderer, &lineRect)
+		}
+
+		// B
+		{
+			position := rect.Position + { 0, rect.Size.y } + { cornerRadius.BL, -thickness }
+			size : [2]f32 = { rect.Size.x - cornerRadius.BL - cornerRadius.BR, thickness }
+
+			lineRect : sdl3.FRect = { x = position.x, y = position.y, w = size.x, h = size.y }
+			sdl3.RenderFillRect(renderer, &lineRect)
+		}
+		
+		// L
+		{
+			position := rect.Position + { 0, cornerRadius.TR }
+			size : [2]f32 = { thickness, rect.Size.y - cornerRadius.TL - cornerRadius.BL }
+
+			lineRect : sdl3.FRect = { x = position.x, y = position.y, w = size.x, h = size.y }
+			sdl3.RenderFillRect(renderer, &lineRect)
+			
+			sdl3.SetRenderDrawColor(renderer, 255, 0, 0, 255)
+			sdl3.RenderPoint(renderer, position.x, position.y)
+			sdl3.SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)	
+		}
+	}
+
+	// Arcs
+	{
+		// TL
+		{
+			center := rect.Position + cornerRadius.TL
+			radius := cornerRadius.TL
+
+			drawArc(renderer, center, radius, thickness, color, 90, 180)
+		}
+		
+		// TR
+		{
+			center := rect.Position + { rect.Size.x, 0 } + { -cornerRadius.TR - 1, cornerRadius.TR }
+			radius := cornerRadius.TR
+
+			drawArc(renderer, center, radius, thickness, color, 90, 0)
+		}
+		
+		// BR
+		{
+			center := rect.Position + rect.Size + { -cornerRadius.BR - 1, -cornerRadius.BR - 1 }
+			radius := cornerRadius.BR
+
+			drawArc(renderer, center, radius, thickness, color, 0, -90)
+		}
+		
+		// BL
+		{
+			center := rect.Position + { 0, rect.Size.y } + { cornerRadius.BL, -cornerRadius.BL - 1 }
+			radius := cornerRadius.BR
+
+			drawArc(renderer, center, radius, thickness, color, -90, -180)
+		}
+	}
+}
+
+drawArc :: proc(renderer: ^sdl3.Renderer, center: [2]f32, radius: f32, thinkness: f32, color: [4]u8, startAngleInDegree: f32, endAngleInDegree: f32)
+{
+	ARC_SEGEMENT_COUNT_90 :: 16 // 90 degrees -> 16, 180 degrees -> 32 etc
+
+	sdl3.SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+	
+	angleDiffInDegree := math.abs(endAngleInDegree - startAngleInDegree)
+	arcSegmentCount := cast(int) math.floor(angleDiffInDegree > 90? ARC_SEGEMENT_COUNT_90 * angleDiffInDegree / 90.0 - 1 : ARC_SEGEMENT_COUNT_90);
+
+	startAngleInRadian := math.to_radians(startAngleInDegree)
+	endAngleInRadian := math.to_radians(endAngleInDegree)
+	angleStep := (endAngleInRadian - startAngleInRadian) / cast(f32) arcSegmentCount
+
+	thicknessInInt : u32 = cast(u32) math.round(thinkness)
+	thicknessInInt = math.max(thicknessInInt, 1)
+	if (thicknessInInt == 1)
+	{
+		// We will only have arcSegmentCount + 1 points but just to make the array static size, we make the array as big as the biggest possible size, 
+		// which is when the arc is a circle (360 degrees)
+		points : [ARC_SEGEMENT_COUNT_90 * 4]sdl3.FPoint
+		for i : = 0; i <= arcSegmentCount; i += 1
+		{
+			angleInRadian := startAngleInRadian + angleStep * cast(f32) i
+			points[i] = { 
+				math.round(center.x + math.cos(angleInRadian) * radius),
+				math.round(center.y - math.sin(angleInRadian) * radius)
+			}
+		}
+		sdl3.RenderLines(renderer, &points[0], cast(c.int) arcSegmentCount + 1)
+	}
+	else
+	{
+		thicknessStep : f32 = 0.4 // arbitary value to avoid overlapping lines issue.
+		for t := thicknessStep; t < thinkness - thicknessStep; t += thicknessStep
+		{
+			// We will only have arcSegmentCount + 1 points but just to make the array static size, we make the array as big as the biggest possible size, 
+			// which is when the arc is a circle (360 degrees)
+			points : [ARC_SEGEMENT_COUNT_90 * 4]sdl3.FPoint
+			clampedRadius := math.max(radius - t, 1.0) // To make sure the value is at least 1
+
+			for i : = 0; i <= arcSegmentCount; i += 1
+			{
+				angleInRadian := startAngleInRadian + angleStep * cast(f32) i
+				points[i] = { 
+					math.round(center.x + math.cos(angleInRadian) * clampedRadius),
+					math.round(center.y - math.sin(angleInRadian) * clampedRadius)
+				}
+			}
+
+			sdl3.RenderLines(renderer, &points[0], cast(c.int) arcSegmentCount + 1)
+		}
+	}
 }
