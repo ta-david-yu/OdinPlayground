@@ -106,7 +106,7 @@ main :: proc()
 		sdl3.Log(sdl3.GetError())
 		return
 	}
-	sdl3.SetRenderLogicalPresentation(renderer, 640, 480, sdl3.RendererLogicalPresentation.LETTERBOX)
+	sdl3.SetRenderLogicalPresentation(renderer, 640, 480, sdl3.RendererLogicalPresentation.STRETCH)
 	defer sdl3.DestroyRenderer(renderer)
 
 	textEngine : ^ttf.TextEngine = ttf.CreateRendererTextEngine(renderer)
@@ -127,7 +127,7 @@ main :: proc()
 	style.Variables.Button.FramePaddingTop = 5
 	style.Variables.Button.FramePaddingLeft = 10
 	style.Variables.Button.FramePaddingRight = 10
-	style.Variables.Button.CornerRadius = { TL = 0, TR = 10, BR = 0, BL = 0 }
+	style.Variables.Button.CornerRadius = { TL = 3, TR = 3, BR = 3, BL = 3 }
 	style.Variables.Shadow.Offset = { 4, 5 }
 	style.Variables.Shadow.Softness = 5
 
@@ -164,8 +164,8 @@ main :: proc()
 					dygui.GetInputState().MouseButtons[event.button.button - 1] = false
 					break
 				case .WINDOW_RESIZED:
-					dygui.GetGUIContext().Canvas = { Width = cast(f32) event.window.data1, Height = cast(f32) event.window.data2 }
-					sdl3.SetRenderLogicalPresentation(renderer, event.window.data1, event.window.data2, sdl3.RendererLogicalPresentation.LETTERBOX)
+					//dygui.GetGUIContext().Canvas = { Width = cast(f32) event.window.data1, Height = cast(f32) event.window.data2 }
+					//sdl3.SetRenderLogicalPresentation(renderer, event.window.data1, event.window.data2, sdl3.RendererLogicalPresentation.STRETCH)
 					break
 			}
 		}
@@ -293,7 +293,7 @@ main :: proc()
 		drawArc(renderer, { 100, 100 }, 50, 1, { 255, 0, 0, 255 }, 0, 270)
 		drawRoundedRect(renderer, { Position = { 300, 300 }, Size = {50, 50} }, { TL = 10, TR = 10, BR = 10, BL = 10 }, { 255, 255, 255, 255 }, 5)
 		drawRoundedRect(renderer, { Position = { 100, 300 }, Size = {150, 150} }, { TL = 10, TR = 10, BR = 10, BL = 10 }, { 255, 255, 255, 255 }, 2)
-		drawRoundedRect(renderer, { Position = { 400, 20 }, Size = {200, 100} }, { TL = 20, TR = 20, BR = 30, BL = 30 }, { 255, 255, 255, 255 }, 1)
+		drawRoundedRect(renderer, { Position = { 400, 20 }, Size = {200, 100} }, { TL = 0, TR = 20, BR = 0, BL = 30 }, { 255, 255, 255, 255 }, 1)
 		sdl3.RenderPresent(renderer)
 
 		timeLastFrame = time
@@ -653,21 +653,18 @@ drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius
 		
 		// L
 		{
-			position := rect.Position + { 0, cornerRadius.TR }
+			position := rect.Position + { 0, cornerRadius.TL }
 			size : [2]f32 = { thickness, rect.Size.y - cornerRadius.TL - cornerRadius.BL }
 
 			lineRect : sdl3.FRect = { x = position.x, y = position.y, w = size.x, h = size.y }
 			sdl3.RenderFillRect(renderer, &lineRect)
-			
-			sdl3.SetRenderDrawColor(renderer, 255, 0, 0, 255)
-			sdl3.RenderPoint(renderer, position.x, position.y)
-			sdl3.SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)	
 		}
 	}
 
 	// Arcs
 	{
 		// TL
+		if (cornerRadius.TL > 0)
 		{
 			center := rect.Position + cornerRadius.TL
 			radius := cornerRadius.TL
@@ -676,6 +673,7 @@ drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius
 		}
 		
 		// TR
+		if (cornerRadius.TR > 0)
 		{
 			center := rect.Position + { rect.Size.x, 0 } + { -cornerRadius.TR - 1, cornerRadius.TR }
 			radius := cornerRadius.TR
@@ -684,6 +682,7 @@ drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius
 		}
 		
 		// BR
+		if (cornerRadius.BR > 0)
 		{
 			center := rect.Position + rect.Size + { -cornerRadius.BR - 1, -cornerRadius.BR - 1 }
 			radius := cornerRadius.BR
@@ -692,9 +691,10 @@ drawRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius
 		}
 		
 		// BL
+		if (cornerRadius.BL > 0)
 		{
 			center := rect.Position + { 0, rect.Size.y } + { cornerRadius.BL, -cornerRadius.BL - 1 }
-			radius := cornerRadius.BR
+			radius := cornerRadius.BL
 
 			drawArc(renderer, center, radius, thickness, color, -90, -180)
 		}

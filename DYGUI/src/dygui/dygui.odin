@@ -566,26 +566,39 @@ Button :: proc(label: string, position: [2]f32) -> bool
     }
     else 
     {
-        // TODO: ok, this doesn't look as good as i expected
-        //       I will have to implement a proper rect border drawing command that will be handled manually by the backend renderer
+        backgroundRect := fullRect
+        addCommandToFrame(FilledRectangleDrawData { Rect = backgroundRect, Color = backgroundColor, CornerRadius = cornerRadius }, &state.Frame)
+
         if (style.Variables.Button.OuterBorderThickness > 0)
         {
             outerBorderRect := fullRect
             outerBorderRect.Position -= cast(f32) style.Variables.Button.OuterBorderThickness
             outerBorderRect.Size += cast(f32) style.Variables.Button.OuterBorderThickness * 2
-            addCommandToFrame(FilledRectangleDrawData { Rect = outerBorderRect, Color = outerBorderColor, CornerRadius = cornerRadius }, &state.Frame)
+            addCommandToFrame(
+                RectangleDrawData { 
+                    Rect = outerBorderRect,
+                    Color = outerBorderColor, 
+                    CornerRadius = cornerRadius, 
+                    Thickness = cast(f32) style.Variables.Button.OuterBorderThickness 
+                }, 
+                &state.Frame
+            )
         }
 
         if (style.Variables.Button.InnerBorderThickness > 0)
         {
             innerBorderRect := fullRect
-            addCommandToFrame(FilledRectangleDrawData { Rect = innerBorderRect, Color = innerBorderColor, CornerRadius = cornerRadius }, &state.Frame)
+            addCommandToFrame(
+                RectangleDrawData { 
+                    Rect = innerBorderRect,
+                    Color = innerBorderColor, 
+                    CornerRadius = cornerRadius, 
+                    Thickness = cast(f32) style.Variables.Button.InnerBorderThickness 
+                }, 
+                &state.Frame
+            )
+            //addCommandToFrame(FilledRectangleDrawData { Rect = innerBorderRect, Color = innerBorderColor, CornerRadius = cornerRadius }, &state.Frame)
         }
-
-        backgroundRect := fullRect
-        backgroundRect.Position += cast(f32) style.Variables.Button.InnerBorderThickness
-        backgroundRect.Size -= cast(f32) style.Variables.Button.InnerBorderThickness * 2
-        addCommandToFrame(FilledRectangleDrawData { Rect = backgroundRect, Color = backgroundColor, CornerRadius = cornerRadius }, &state.Frame)
     }
 
     // Text
