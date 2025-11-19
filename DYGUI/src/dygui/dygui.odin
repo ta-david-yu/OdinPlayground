@@ -398,11 +398,12 @@ SetNexItemSize :: proc (size: [2]f32)
 
 Button :: proc(label: string, position: [2]f32) -> bool
 {
+    id : DYID = getID(label)
+
     style := GetStyle()
     state := GetState()
 
     isClicked : bool = false;
-    id : DYID = getID(label)
     
     guiContext := GetGUIContext()
     fontConfig := style.MainFontConfig
@@ -411,22 +412,27 @@ Button :: proc(label: string, position: [2]f32) -> bool
     textRect : Rect
     fullRect : Rect
 
+    xPadding := style.Variables.Button.FramePaddingLeft + style.Variables.Button.FramePaddingRight
+    yPadding := style.Variables.Button.FramePaddingTop + style.Variables.Button.FramePaddingBottom
     if (NextItemDataFlag.HasSize in guiContext.NextItemData.Flags)
     {
         // If next item size flag is set, we use the size data directly; ignoring frame padding.
-        fullRect = Rect{Position=position, Size=guiContext.NextItemData.Size}
+        useFixedWidth : bool = guiContext.NextItemData.Size.x > 0
+        useFixedHeight : bool = guiContext.NextItemData.Size.y > 0
+
+        fullRectWidth := useFixedWidth? guiContext.NextItemData.Size.x : textDimensions.x + xPadding
+        fullRectHeight := useFixedHeight? guiContext.NextItemData.Size.y : textDimensions.y + yPadding
+        fullRect = Rect{Position=position, Size={fullRectWidth, fullRectHeight}}
 
         // At the moment we align text to the center middle.
-        textRectPosition := position + fullRect.Size * 0.5 - cast([2]f32)textDimensions * 0.5
-        textRect = Rect{Position=textRectPosition, Size=textDimensions.xy}
+        xTextRect := position.x + (useFixedWidth? fullRect.Size.x * 0.5 - textDimensions.x * 0.5 : style.Variables.Button.FramePaddingLeft)
+        yTextRect := position.y + (useFixedHeight? fullRect.Size.y * 0.5 - textDimensions.y * 0.5 : style.Variables.Button.FramePaddingTop)
+        textRect = Rect{Position={xTextRect, yTextRect}, Size=textDimensions.xy}
     }
     else
     {
         // If the size is not provided, we will use the text dimension to calculate the button size.
-        xPadding := style.Variables.Button.FramePaddingLeft + style.Variables.Button.FramePaddingRight
-        yPadding := style.Variables.Button.FramePaddingTop + style.Variables.Button.FramePaddingBottom
         fullRect = Rect{Position=position, Size=textDimensions.xy + {xPadding, yPadding}}
-
         textRect = Rect{Position=position + {style.Variables.Button.FramePaddingLeft, style.Variables.Button.FramePaddingTop}, Size=textDimensions.xy}
     }
     addItem(fullRect, id)
@@ -570,3 +576,46 @@ Button :: proc(label: string, position: [2]f32) -> bool
 
     return isClicked
 }
+
+Text :: proc(label: string, position: [2]f32)
+{
+    id : DYID = getID(label)
+
+    style := GetStyle()
+    state := GetState()
+
+    guiContext := GetGUIContext()
+    fontConfig := style.MainFontConfig
+
+    textDimensions := guiContext.Functions.MeasureText(label, fontConfig)
+    textRect : Rect
+    fullRect : Rect
+    
+    if (NextItemDataFlag.HasSize in guiContext.NextItemData.Flags)
+    {
+        // If next item size flag is set, we use the size data directly; ignoring frame padding.
+        useFixedWidth : bool = guiContext.NextItemData.Size.x > 0
+        useFixedHeight : bool = guiContext.NextItemData.Size.y > 0
+
+        fullRectWidth := useFixedWidth? guiContext.NextItemData.Size.x : textDimensions.x
+        fullRectHeight := useFixedHeight? guiContext.NextItemData.Size.y : textDimensions.y
+        fullRect = Rect{Position=position, Size={fullRectWidth, fullRectHeight}}
+
+        // At the moment we align text to the center middle.
+        xTextRect := position.x + (useFixedWidth? fullRect.Size.x * 0.5 - textDimensions.x * 0.5 : 0)
+        yTextRect := position.y + (useFixedHeight? fullRect.Size.y * 0.5 - textDimensions.y * 0.5 : 0)
+        textRect = Rect{Position={xTextRect, yTextRect}, Size=textDimensions.xy}
+    }
+    else
+    {
+        // If the size is not provided, we will use the text dimension directly
+        fullRect = Rect{Position=position, Size=textDimensions.xy}
+        textRect = fullRect
+    }
+    addItem(fullRect, id)
+
+    
+    // Text
+    addCommandToFrame(TextDrawData { TextRect = textRect, TextColor = style.Colors.Text, TextContent = label, FontConfig = fontConfig }, &state.Frame)
+}
+

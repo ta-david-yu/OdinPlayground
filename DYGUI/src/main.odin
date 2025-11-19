@@ -174,19 +174,21 @@ main :: proc()
 		// DYGUI
 		dygui.NewFrame()
 		{
-			dygui.SetNexItemSize({ 150, 50 })
+			dygui.SetNexItemSize({ 150, 0 })
 			if (dygui.Button("Test Button", { 300, 250 }))
 			{
 				fmt.println("Test Button with Text Pressed")
 			}
 
 			dygui.PushFontConfig({ FontId = 1, FontSize = 22 }) // Font Id 1 is for chinese.
-			
 			if (dygui.Button("改顏色", { 400, 300 }))
 			{
 				roundedRectColor.r += 10
 				fmt.println(roundedRectColor)
 			}
+			
+			dygui.SetNexItemSize({ 640, 0 })
+			dygui.Text("標題文字在這裡", { 0, 32 })
 			dygui.PopFontConfig()
 		}
 		dygui.EndFrame()
