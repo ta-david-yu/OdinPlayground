@@ -117,7 +117,8 @@ main :: proc()
 	dygui.SetMainFontConfig({ FontId = 0, FontSize = 18 })
 	
 	style := dygui.GetStyle()
-	style.Colors.Button.Text = { 0, 0, 0, 255 }
+	style.Colors.Text = { 0, 0, 0, 255 }
+	
 	style.Colors.Button.Idle = { 180, 180, 180, 255 }
 	style.Colors.Button.Hovered = { 255, 255, 255, 255 }
 	style.Colors.Button.Active = { 200, 200, 200, 255 }
@@ -173,43 +174,7 @@ main :: proc()
 		// DYGUI
 		dygui.NewFrame()
 		{
-			if (dygui.ColorButton("Red", {10, 10}, {40, 20}, {255, 0, 0, 255})) 
-			{
-				fmt.println("Click Red")
-			}
-
-			if (dygui.ColorButton("Green", {200, 150}, {40, 20}, {0, 255, 0, 255})) 
-			{
-				fmt.println("Click Green1")
-			}
-
-			if (dygui.ColorButton("Green", {150, 350}, {40, 20}, {0, 255, 0, 255})) 
-			{
-				fmt.println("Click Green2")
-			}
-			
-			deltaTime : f32 = cast(f32) (time - timeLastFrame) / 1000.0
-			
-			width : f32 = 40
-			movingButtonPos.x += deltaTime * movingSpeed
-			if (movingButtonPos.x > 640)
-			{
-				movingButtonPos.x = -width
-			}
-
-			if (dygui.ColorButton("Moving", movingButtonPos, {width, 20}, {0, 0, 255, 255})) 
-			{
-				fmt.println("Click Moving")
-			}
-			if (dygui.IsItemHovered())
-			{
-				movingSpeed = 100
-			}
-			else 
-			{
-				movingSpeed = 200
-			}
-
+			dygui.SetNexItemSize({ 150, 50 })
 			if (dygui.Button("Test Button", { 300, 250 }))
 			{
 				fmt.println("Test Button with Text Pressed")
