@@ -392,11 +392,17 @@ IsItemHovered :: proc() -> bool
 // Set the size of the next item. 
 // You can use 0 to indicate auto fit at the specified dimension.
 // For instance, if next item size is set to {400, 0}, the width will be 400 but the height will be automatically calculated based on the content of the item. 
-SetNexItemSize :: proc (size: [2]f32)
+SetNexItemSize :: proc(size: [2]f32)
 {
     guiContext := GetGUIContext()
     guiContext.NextItemData.Flags += { .HasSize }
     guiContext.NextItemData.Size = size
+}
+
+GetLastItemRect :: proc() -> Rect
+{
+    state := GetState()
+    return state.LastItemData.Rect
 }
 
 Button :: proc(label: string, position: [2]f32) -> bool
