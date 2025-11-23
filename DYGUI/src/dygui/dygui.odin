@@ -621,4 +621,3 @@ Text :: proc(label: string, position: [2]f32)
     // Text
     addCommandToFrame(TextDrawData { TextRect = textRect, TextColor = style.Colors.Text, TextContent = label, FontConfig = fontConfig }, &state.Frame)
 }
-

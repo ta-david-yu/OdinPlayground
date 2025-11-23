@@ -10,9 +10,6 @@ import "vendor:sdl3/ttf"
 
 import dygui "dygui"
 
-movingButtonPos : [2]f32 = { 50, 100 }
-movingSpeed : f32 = 50
-
 fonts : [dynamic]^ttf.Font
 
 measureText :: proc(textContent: string, fontConfig: dygui.FontConfig) -> dygui.Dimensions 
@@ -43,231 +40,6 @@ measureText :: proc(textContent: string, fontConfig: dygui.FontConfig) -> dygui.
 	}
 
 	return { cast(f32) measuredTextWidth, cast(f32) measuredTextHeight }
-}
-
-main :: proc() 
-{
-	typeId := typeid_of(dygui.Rect)
-	info := type_info_of(typeId)
-
-
-	timeLastFrame : u64 = 0
-	time : u64 = 0
-
-	if (!sdl3.SetAppMetadata("DYGUI", "0.1.0", "com.ta-david-ui.dygui")) 
-	{
-		sdl3.Log("Failed to set metadata")
-	}
-
-	if (!sdl3.Init(sdl3.INIT_VIDEO)) 
-	{
-		sdl3.Log("Couldn't initialize SDL")
-		return
-	}
-	defer sdl3.Quit()
-
-	ttfResult := ttf.Init()
-	if (!ttfResult) 
-	{
-		sdl3.Log("Couldn't initialize ttf")
-		return
-	}
-
-	// Load different fonts
-	latinFont : ^ttf.Font = ttf.OpenFont("fonts/m6x11plus.ttf", 36)
-	if (latinFont == nil)
-	{
-		sdl3.Log("Failed to load ttf font file")
-		return
-	}
-	defer ttf.CloseFont(latinFont)
-	append(&fonts, latinFont)
-	
-	chineseFont : ^ttf.Font = ttf.OpenFont("fonts/Cubic_11.ttf", 33)
-	if (chineseFont == nil)
-	{
-		sdl3.Log("Failed to load ttf font file")
-		return
-	}
-	defer ttf.CloseFont(chineseFont)
-	append(&fonts, chineseFont)
-
-	window : ^sdl3.Window = sdl3.CreateWindow("DYGUI", 640, 480, sdl3.WINDOW_RESIZABLE)
-	if (window == nil)
-	{
-		sdl3.Log(sdl3.GetError())
-	}
-	defer sdl3.DestroyWindow(window)
-
-	driverName : cstring = ""
-	renderer : ^sdl3.Renderer = sdl3.CreateRenderer(window, driverName);
-	if (renderer == nil) 
-	{
-		sdl3.Log(sdl3.GetError())
-		return
-	}
-	sdl3.SetRenderLogicalPresentation(renderer, 640, 480, sdl3.RendererLogicalPresentation.STRETCH)
-	defer sdl3.DestroyRenderer(renderer)
-
-	textEngine : ^ttf.TextEngine = ttf.CreateRendererTextEngine(renderer)
-	defer ttf.DestroyRendererTextEngine(textEngine)
-
-	dygui.Init(dygui.Canvas{Width=640, Height=480})
-	dygui.SetMeasureTextFunction(measureText)
-	dygui.SetMainFontConfig({ FontId = 0, FontSize = 18 })
-	
-	style := dygui.GetStyle()
-	style.Colors.Text = { 0, 0, 0, 255 }
-	
-	style.Colors.Button.Idle = { 180, 180, 180, 255 }
-	style.Colors.Button.Hovered = { 255, 255, 255, 255 }
-	style.Colors.Button.Active = { 200, 200, 200, 255 }
-	style.Colors.Shadow = { 0, 0, 0, 128 }
-
-	style.Variables.Button.FramePaddingBottom = 5
-	style.Variables.Button.FramePaddingTop = 5
-	style.Variables.Button.FramePaddingLeft = 10
-	style.Variables.Button.FramePaddingRight = 10
-	style.Variables.Button.CornerRadius = { TL = 3, TR = 3, BR = 3, BL = 3 }
-	style.Variables.Shadow.Offset = { 4, 5 }
-	style.Variables.Shadow.Softness = 5
-
-	style.Variables.Button.InnerBorderThickness = 2
-	style.Colors.Button.InnerBorderIdle = 255
-	style.Colors.Button.InnerBorderHovered = 255
-	style.Colors.Button.InnerBorderActive = 255
-	
-	style.Variables.Button.OuterBorderThickness = 2
-	style.Colors.Button.OuterBorderIdle = {0, 0, 0, 255}
-	style.Colors.Button.OuterBorderHovered = {0, 0, 0, 255}
-	style.Colors.Button.OuterBorderActive = {0, 0, 0, 255}
-
-	roundedRectColor : [4]u8 = { 128, 128, 128, 255 }
-	for 
-	{
-		// Event
-		event: sdl3.Event
-		for sdl3.PollEvent(&event) 
-		{
-			#partial switch event.type 
-			{
-				case .QUIT:
-					return
-				case .MOUSE_MOTION:
-					x := event.button.x
-					y := event.button.y
-					dygui.GetInputState().MousePosition = { x, y }
-					break
-				case .MOUSE_BUTTON_DOWN:
-					dygui.GetInputState().MouseButtons[event.button.button - 1] = true
-					break
-				case .MOUSE_BUTTON_UP:
-					dygui.GetInputState().MouseButtons[event.button.button - 1] = false
-					break
-				case .WINDOW_RESIZED:
-					//dygui.GetGUIContext().Canvas = { Width = cast(f32) event.window.data1, Height = cast(f32) event.window.data2 }
-					//sdl3.SetRenderLogicalPresentation(renderer, event.window.data1, event.window.data2, sdl3.RendererLogicalPresentation.STRETCH)
-					break
-			}
-		}
-
-		// DYGUI
-		dygui.NewFrame()
-		{
-			dygui.SetNexItemSize({ 150, 0 })
-			if (dygui.Button("Test Button", { 300, 250 }))
-			{
-				fmt.println("Test Button with Text Pressed")
-			}
-
-			dygui.PushFontConfig({ FontId = 1, FontSize = 22 }) // Font Id 1 is for chinese.
-			if (dygui.Button("改顏色", { 400, 300 }))
-			{
-				roundedRectColor.r += 10
-				fmt.println(roundedRectColor)
-			}
-			
-			dygui.SetNexItemSize({ 640, 0 })
-			dygui.Text("標題文字在這裡", { 0, 32 })
-			dygui.PopFontConfig()
-		}
-		dygui.EndFrame()
-
-		// Render
-		sdl3.SetRenderDrawColor(renderer, roundedRectColor.r, roundedRectColor.g, roundedRectColor.b, sdl3.ALPHA_OPAQUE)
-		sdl3.RenderClear(renderer)
-
-		frame := &dygui.GetState().Frame
-		for i := 0; i < frame.NumberOfDrawCommands; i += 1 
-		{
-			drawCommand := frame.DrawCommands[i]
-			switch drawData in drawCommand.Data
-			{
-				case dygui.FilledRectangleDrawData:
-					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
-					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
-
-					hasRoundedCorners : bool = drawData.CornerRadius.TL > 0 || drawData.CornerRadius.TR > 0 || drawData.CornerRadius.BR > 0 || drawData.CornerRadius.BL > 0;
-					if (hasRoundedCorners)
-					{
-						drawFilledRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color)
-					}
-					else
-					{
-						rect := sdl3.FRect {}
-						rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
-						rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
-						sdl3.RenderFillRect(renderer, &rect)
-					}
-				case dygui.TextDrawData:
-					font := fonts[drawData.FontConfig.FontId]
-					currentFontSize := ttf.GetFontSize(font)
-					targetMeasureFontSize := cast(f32) drawData.FontConfig.FontSize
-					needToChangeFontSize : bool = currentFontSize != targetMeasureFontSize
-					if (needToChangeFontSize)
-					{
-						if (!ttf.SetFontSize(font, targetMeasureFontSize)) { break }
-					}
-					textContentInCStr := strings.clone_to_cstring(drawData.TextContent, context.temp_allocator)
-					ttfText : ^ttf.Text = ttf.CreateText(textEngine, font, textContentInCStr, 0)
-					setColorResult := ttf.SetTextColor(ttfText, drawData.TextColor.r, drawData.TextColor.g, drawData.TextColor.b, drawData.TextColor.a)
-					defer ttf.DestroyText(ttfText)
-
-					result := ttf.DrawRendererText(ttfText, drawData.TextRect.Position.x, drawData.TextRect.Position.y)
-				case dygui.RectangleDrawData:
-					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
-					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
-
-					hasRoundedCorners : bool = drawData.CornerRadius.TL > 0 || drawData.CornerRadius.TR > 0 || drawData.CornerRadius.BR > 0 || drawData.CornerRadius.BL > 0;
-					if (hasRoundedCorners)
-					{
-						drawRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color, drawData.Thickness)
-					}
-					else
-					{
-						rect := sdl3.FRect {}
-						rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
-						rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
-						sdl3.RenderRect(renderer, &rect)
-					}
-
-			}
-		}
-
-		drawArc(renderer, { 200, 200 }, 50, 20, { 255, 255, 255, 255 }, 0, 90)
-		//drawArc(renderer, { 200, 200 }, 100, 2, { 0, 255, 0, 255 }, 0, 270)
-		drawArc(renderer, { 200, 200 }, 50, 2, { 255, 0, 0, 255 }, 0, 270)
-		drawArc(renderer, { 100, 100 }, 50, 1, { 255, 0, 0, 255 }, 0, 270)
-		drawRoundedRect(renderer, { Position = { 300, 300 }, Size = {50, 50} }, { TL = 10, TR = 10, BR = 10, BL = 10 }, { 255, 255, 255, 255 }, 5)
-		drawRoundedRect(renderer, { Position = { 100, 300 }, Size = {150, 150} }, { TL = 10, TR = 10, BR = 10, BL = 10 }, { 255, 255, 255, 255 }, 2)
-		drawRoundedRect(renderer, { Position = { 400, 20 }, Size = {200, 100} }, { TL = 0, TR = 20, BR = 0, BL = 30 }, { 255, 255, 255, 255 }, 1)
-		sdl3.RenderPresent(renderer)
-
-		timeLastFrame = time
-		time = sdl3.GetTicks()
-
-		free_all(context.temp_allocator)
-	}
 }
 
 drawFilledRoundedRect :: proc(renderer: ^sdl3.Renderer, rect: dygui.Rect, cornerRadius: dygui.CornerRadius, color: [4]u8)
@@ -719,5 +491,233 @@ drawArc :: proc(renderer: ^sdl3.Renderer, center: [2]f32, radius: f32, thinkness
 
 			sdl3.RenderLines(renderer, &points[0], cast(c.int) arcSegmentCount + 1)
 		}
+	}
+}
+
+main :: proc() 
+{
+	viewWidth, viewHeight := 960, 720
+
+	timeLastFrame : u64 = 0
+	time : u64 = 0
+
+	if (!sdl3.SetAppMetadata("DYGUI", "0.1.0", "com.ta-david-ui.dygui")) 
+	{
+		sdl3.Log("Failed to set metadata")
+	}
+
+	if (!sdl3.Init(sdl3.INIT_VIDEO)) 
+	{
+		sdl3.Log("Couldn't initialize SDL")
+		return
+	}
+	defer sdl3.Quit()
+
+	ttfResult := ttf.Init()
+	if (!ttfResult) 
+	{
+		sdl3.Log("Couldn't initialize ttf")
+		return
+	}
+
+	// Load different fonts
+	latinFont : ^ttf.Font = ttf.OpenFont("fonts/m6x11plus.ttf", 36)
+	if (latinFont == nil)
+	{
+		sdl3.Log("Failed to load ttf font file")
+		return
+	}
+	defer ttf.CloseFont(latinFont)
+	append(&fonts, latinFont)
+	
+	chineseFont : ^ttf.Font = ttf.OpenFont("fonts/Cubic_11.ttf", 33)
+	if (chineseFont == nil)
+	{
+		sdl3.Log("Failed to load ttf font file")
+		return
+	}
+	defer ttf.CloseFont(chineseFont)
+	append(&fonts, chineseFont)
+
+	window : ^sdl3.Window = sdl3.CreateWindow("DYGUI", cast(c.int)viewWidth, cast(c.int)viewHeight, sdl3.WINDOW_RESIZABLE)
+	if (window == nil)
+	{
+		sdl3.Log(sdl3.GetError())
+	}
+	defer sdl3.DestroyWindow(window)
+
+	driverName : cstring = ""
+	renderer : ^sdl3.Renderer = sdl3.CreateRenderer(window, driverName);
+	if (renderer == nil) 
+	{
+		sdl3.Log(sdl3.GetError())
+		return
+	}
+	sdl3.SetRenderLogicalPresentation(renderer, cast(c.int)viewWidth, cast(c.int)viewHeight, sdl3.RendererLogicalPresentation.LETTERBOX)
+	defer sdl3.DestroyRenderer(renderer)
+
+	textEngine : ^ttf.TextEngine = ttf.CreateRendererTextEngine(renderer)
+	defer ttf.DestroyRendererTextEngine(textEngine)
+
+	dygui.Init(dygui.Canvas{Width=cast(f32)viewWidth, Height=cast(f32)viewHeight})
+	dygui.SetMeasureTextFunction(measureText)
+	dygui.SetMainFontConfig({ FontId = 0, FontSize = 18 })
+	
+	style := dygui.GetStyle()
+	style.Colors.Text = { 0, 0, 0, 255 }
+	
+	style.Colors.Button.Idle = { 180, 180, 180, 255 }
+	style.Colors.Button.Hovered = { 255, 255, 255, 255 }
+	style.Colors.Button.Active = { 200, 200, 200, 255 }
+	style.Colors.Shadow = { 0, 0, 0, 128 }
+
+	style.Variables.Button.FramePaddingBottom = 5
+	style.Variables.Button.FramePaddingTop = 5
+	style.Variables.Button.FramePaddingLeft = 10
+	style.Variables.Button.FramePaddingRight = 10
+	style.Variables.Button.CornerRadius = { TL = 3, TR = 3, BR = 3, BL = 3 }
+	style.Variables.Shadow.Offset = { 4, 5 }
+	style.Variables.Shadow.Softness = 5
+
+	style.Variables.Button.InnerBorderThickness = 2
+	style.Colors.Button.InnerBorderIdle = 255
+	style.Colors.Button.InnerBorderHovered = 255
+	style.Colors.Button.InnerBorderActive = 255
+	
+	style.Variables.Button.OuterBorderThickness = 2
+	style.Colors.Button.OuterBorderIdle = {0, 0, 0, 255}
+	style.Colors.Button.OuterBorderHovered = {0, 0, 0, 255}
+	style.Colors.Button.OuterBorderActive = {0, 0, 0, 255}
+
+	roundedRectColor : [4]u8 = { 128, 128, 128, 255 }
+	for 
+	{
+		// Event
+		event: sdl3.Event
+		for sdl3.PollEvent(&event) 
+		{
+			#partial switch event.type 
+			{
+				case .QUIT:
+					return
+				case .MOUSE_MOTION:
+					x := event.button.x
+					y := event.button.y
+
+					rendererRect : sdl3.FRect
+					if sdl3.GetRenderLogicalPresentationRect(renderer, &rendererRect)
+					{
+						x -= rendererRect.x
+						y -= rendererRect.y
+
+						guiContext := dygui.GetGUIContext()
+						x *= guiContext.Canvas.Width / rendererRect.w
+						y *= guiContext.Canvas.Height / rendererRect.h
+					}
+					dygui.GetInputState().MousePosition = { x, y }
+					break
+				case .MOUSE_BUTTON_DOWN:
+					dygui.GetInputState().MouseButtons[event.button.button - 1] = true
+					break
+				case .MOUSE_BUTTON_UP:
+					dygui.GetInputState().MouseButtons[event.button.button - 1] = false
+					break
+				case .WINDOW_RESIZED:
+
+					//dygui.GetGUIContext().Canvas = { Width = cast(f32) event.window.data1, Height = cast(f32) event.window.data2 }
+					//sdl3.SetRenderLogicalPresentation(renderer, event.window.data1, event.window.data2, sdl3.RendererLogicalPresentation.STRETCH)
+					break
+			}
+		}
+
+		// DYGUI
+		dygui.NewFrame()
+		{
+			dygui.SetNexItemSize({ 150, 0 })
+			if (dygui.Button("Test Button", { 300, 250 }))
+			{
+				fmt.println("Test Button with Text Pressed")
+			}
+
+			dygui.PushFontConfig({ FontId = 1, FontSize = 22 }) // Font Id 1 is for chinese.
+			if (dygui.Button("改顏色", { 400, 300 }))
+			{
+				roundedRectColor.r += 10
+				fmt.println(roundedRectColor)
+			}
+			
+			dygui.SetNexItemSize({ cast(f32)viewWidth, 0 })
+			dygui.Text("標題文字在這裡", { 0, 32 })
+			dygui.PopFontConfig()
+		}
+		dygui.EndFrame()
+
+		// Render
+		sdl3.SetRenderDrawColor(renderer, roundedRectColor.r, roundedRectColor.g, roundedRectColor.b, sdl3.ALPHA_OPAQUE)
+		sdl3.RenderClear(renderer)
+
+		frame := &dygui.GetState().Frame
+		for i := 0; i < frame.NumberOfDrawCommands; i += 1 
+		{
+			drawCommand := frame.DrawCommands[i]
+			switch drawData in drawCommand.Data
+			{
+				case dygui.FilledRectangleDrawData:
+					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
+					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
+
+					hasRoundedCorners : bool = drawData.CornerRadius.TL > 0 || drawData.CornerRadius.TR > 0 || drawData.CornerRadius.BR > 0 || drawData.CornerRadius.BL > 0;
+					if (hasRoundedCorners)
+					{
+						drawFilledRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color)
+					}
+					else
+					{
+						rect := sdl3.FRect {}
+						rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
+						rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
+						sdl3.RenderFillRect(renderer, &rect)
+					}
+				case dygui.TextDrawData:
+					font := fonts[drawData.FontConfig.FontId]
+					currentFontSize := ttf.GetFontSize(font)
+					targetMeasureFontSize := cast(f32) drawData.FontConfig.FontSize
+					needToChangeFontSize : bool = currentFontSize != targetMeasureFontSize
+					if (needToChangeFontSize)
+					{
+						if (!ttf.SetFontSize(font, targetMeasureFontSize)) { break }
+					}
+					textContentInCStr := strings.clone_to_cstring(drawData.TextContent, context.temp_allocator)
+					ttfText : ^ttf.Text = ttf.CreateText(textEngine, font, textContentInCStr, 0)
+					setColorResult := ttf.SetTextColor(ttfText, drawData.TextColor.r, drawData.TextColor.g, drawData.TextColor.b, drawData.TextColor.a)
+					defer ttf.DestroyText(ttfText)
+
+					result := ttf.DrawRendererText(ttfText, drawData.TextRect.Position.x, drawData.TextRect.Position.y)
+				case dygui.RectangleDrawData:
+					sdl3.SetRenderDrawBlendMode(renderer, sdl3.BLENDMODE_BLEND)
+					sdl3.SetRenderDrawColor(renderer, drawData.Color.r, drawData.Color.g, drawData.Color.b, drawData.Color.a)
+
+					hasRoundedCorners : bool = drawData.CornerRadius.TL > 0 || drawData.CornerRadius.TR > 0 || drawData.CornerRadius.BR > 0 || drawData.CornerRadius.BL > 0;
+					if (hasRoundedCorners)
+					{
+						drawRoundedRect(renderer, drawData.Rect, drawData.CornerRadius, drawData.Color, drawData.Thickness)
+					}
+					else
+					{
+						rect := sdl3.FRect {}
+						rect.x, rect.y = drawData.Rect.Position.x, drawData.Rect.Position.y
+						rect.w, rect.h = drawData.Rect.Size.x, drawData.Rect.Size.y
+						sdl3.RenderRect(renderer, &rect)
+					}
+
+			}
+		}
+
+		sdl3.RenderPresent(renderer)
+
+		timeLastFrame = time
+		time = sdl3.GetTicks()
+
+		free_all(context.temp_allocator)
 	}
 }
