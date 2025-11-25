@@ -2,6 +2,7 @@ package dye
 
 import "base:runtime"
 import "core:c"
+import "core:fmt"
 import "core:math"
 import "core:strings"
 
@@ -31,6 +32,7 @@ EngineMemory :: struct {
 	TextEngine:         ^ttf.TextEngine,
 	Ticks:              u64,
 	TicksLastUpdate:    u64,
+	ExitRequested:      bool,
 }
 
 SetAppMetadata :: proc(appName, appVersion, appIdentifier: cstring) -> bool {
@@ -110,6 +112,7 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 	for sdl3.PollEvent(&event) {
 		#partial switch event.type {
 		case .QUIT:
+			engineMemory.ExitRequested = true
 			return
 		case .MOUSE_MOTION:
 			x := event.button.x
@@ -208,6 +211,9 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 				sdl3.RenderFillRect(renderer, &rect)
 			}
 		case dygui.TextDrawData:
+			if drawData.FontConfig.FontId >= cast(u16)len(engineMemory.Fonts) {
+				break
+			}
 			font := fonts[drawData.FontConfig.FontId]
 			currentFontSize := ttf.GetFontSize(font)
 			targetMeasureFontSize := cast(f32)drawData.FontConfig.FontSize
@@ -306,6 +312,11 @@ measureText :: proc(
 	userData: rawptr,
 ) -> dygui.Dimensions {
 	engineMemory := cast(^EngineMemory)userData
+
+	if fontConfig.FontId >= cast(u16)len(engineMemory.Fonts) {
+		return {0, 0}
+	}
+
 	font := engineMemory.Fonts[fontConfig.FontId]
 	currentFontSize := ttf.GetFontSize(font)
 	targetMeasureFontSize := cast(f32)fontConfig.FontSize
@@ -313,7 +324,7 @@ measureText :: proc(
 	needToChangeFontSize: bool = currentFontSize != targetMeasureFontSize
 	if (needToChangeFontSize) {
 		if (!ttf.SetFontSize(font, targetMeasureFontSize)) {
-			return {100, 100}
+			return {0, 0}
 			// TODO: error handling
 		}
 	}
@@ -331,7 +342,7 @@ measureText :: proc(
 	if (needToChangeFontSize) {
 		if (!ttf.SetFontSize(font, currentFontSize)) {
 			// TODO: error handling
-			return {100, 100}
+			return {0, 0}
 		}
 	}
 

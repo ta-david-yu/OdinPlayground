@@ -16,7 +16,7 @@ App_GetAppMemory :: proc() -> rawptr {
 
 @(export)
 App_ShouldExitUpdateLoop :: proc() -> bool {
-	return false
+	return g_Memory.EngineMemory.ExitRequested
 }
 
 @(export)
@@ -32,6 +32,7 @@ App_Init :: proc() {
 	}
 
 	dye.InitEngineSystems(g_Memory.EngineMemory)
+	OnAfterInitEngineSystems()
 }
 
 @(export)
