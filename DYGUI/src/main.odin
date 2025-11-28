@@ -20,26 +20,76 @@ AppAPI :: struct {
 
 g_Api: AppAPI = {}
 
+g_LibraryExtension :: ".dll"
+g_LibraryPath :: "app"
+
 
 main :: proc() {
 	apiVersion := 0
-	api, result := LoadAppAPI("app", apiVersion, "App_")
-	defer UnloadAppAPI(api)
-
-	/*
-	_, result := dynlib.initialize_symbols(&g_Api, "app.dll", "App_", "Library")
-	defer dynlib.unload_library(g_Api.Library)*/
+	api, result := LoadAppAPI(g_LibraryPath, apiVersion, "App_")
+	if !result {
+		fmt.printfln("Failed to load dll file.")
+		return
+	}
+	apiVersion += 1
 
 	api.Init()
 
+	fmt.printfln("Loop with api version {0}", api.Info.APIVersion)
+
+	counter := 0
 	for {
 		api.OneLoop()
 		if (api.ShouldExitUpdateLoop()) {
 			break
 		}
+
+		// Check if the dll has a new update
+		dllPath := fmt.tprintf("{0}{1}", g_LibraryPath, g_LibraryExtension)
+		dllTime, dllTimeError := os.last_write_time_by_name(dllPath)
+		shouldReload: bool = dllTimeError == os.ERROR_NONE && api.Info.DLLTimestamp != dllTime
+		if shouldReload {
+			newAPI, newAPIResult := LoadAppAPI(g_LibraryPath, apiVersion, "App_")
+			if newAPIResult {
+				// Cache the address to the game memory
+				existingGameMemory: rawptr = api.GetAppMemory()
+
+				// Unload the old library
+				if (UnloadAppAPI(api)) {
+					dllPathToRemove := fmt.tprintf(
+						"{0}_{1}{2}",
+						g_LibraryPath,
+						api.Info.APIVersion,
+						g_LibraryExtension,
+					)
+					removeError := os.remove(dllPathToRemove)
+					if removeError != os.ERROR_NONE {
+						fmt.printfln("Failed to remove {0}: {1}", dllPathToRemove, removeError)
+					}
+				}
+
+				// Replace the api with the new loaded instance
+				api = newAPI
+
+				// Set the address to the mmoery back
+				api.HotReload(existingGameMemory)
+
+				apiVersion += 1
+				continue
+			}
+		}
 	}
 
 	api.Shutdown()
+	if UnloadAppAPI(api) {
+		dllPathToRemove := fmt.tprintf(
+			"{0}_{1}{2}",
+			g_LibraryPath,
+			api.Info.APIVersion,
+			g_LibraryExtension,
+		)
+		removeError := os.remove(dllPathToRemove)
+	}
 }
 
 
@@ -51,8 +101,7 @@ LoadAppAPI :: proc(
 	api: AppAPI,
 	result: bool,
 ) {
-	dllExtension := ".dll"
-	dllPath := fmt.tprintf("{0}{1}", dllPathWithoutExtension, dllExtension)
+	dllPath := fmt.tprintf("{0}{1}", dllPathWithoutExtension, g_LibraryExtension)
 	dllTime, dllTimeError := os.last_write_time_by_name(dllPath)
 
 	if dllTimeError != os.ERROR_NONE {
@@ -67,7 +116,7 @@ LoadAppAPI :: proc(
 		"{0}_{1}{2}",
 		dllPathWithoutExtension,
 		apiVersion,
-		dllExtension,
+		g_LibraryExtension,
 	)
 	copyResult := copyFile(dllPath, versionedDllPath)
 	if !copyResult {
@@ -79,13 +128,11 @@ LoadAppAPI :: proc(
 	copyFile :: proc(srcPath, dstPath: string) -> bool {
 		data, ok := os.read_entire_file(srcPath)
 		if !ok {
-			//fmt.printfln("Failed copy file error: {0}", os.get_last_error())
 			return false
 		}
 
 		ok = os.write_entire_file(dstPath, data)
 		if !ok {
-			//fmt.printfln("Failed copy file error: {0}", os.get_last_error())
 			return false
 		}
 
@@ -127,5 +174,6 @@ UnloadAppAPI :: proc(api: AppAPI) -> (result: bool) {
 		}
 	}
 
+	fmt.printfln("Unload lib of version {0}", api.Info.APIVersion)
 	return true
 }
