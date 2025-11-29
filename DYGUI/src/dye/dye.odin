@@ -27,6 +27,7 @@ EngineMemory :: struct {
 	MainWindowSettings: WindowSettings,
 	MainWindow:         ^sdl3.Window,
 	MainRenderer:       ^sdl3.Renderer,
+	RendererClearColor: [4]u8,
 	GUIContext:         ^dygui.GUIContext,
 	Fonts:              [dynamic]^ttf.Font,
 	TextEngine:         ^ttf.TextEngine,
@@ -152,7 +153,13 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 	// Render
 	{
 		// Clear
-		sdl3.SetRenderDrawColor(engineMemory.MainRenderer, 180, 180, 180, sdl3.ALPHA_OPAQUE)
+		sdl3.SetRenderDrawColor(
+			engineMemory.MainRenderer,
+			engineMemory.RendererClearColor.r,
+			engineMemory.RendererClearColor.g,
+			engineMemory.RendererClearColor.b,
+			engineMemory.RendererClearColor.a,
+		)
 		sdl3.RenderClear(engineMemory.MainRenderer)
 
 		// Event: OnRender

@@ -12,6 +12,7 @@ AppAPI :: struct {
 	Library:              dynlib.Library,
 	GetAppMemory:         proc() -> rawptr,
 	ShouldExitUpdateLoop: proc() -> bool,
+	RequireHardReset:     proc() -> bool,
 	Init:                 proc(),
 	OneLoop:              proc(),
 	HotReload:            proc(appMemory: rawptr),
@@ -40,8 +41,40 @@ main :: proc() {
 	counter := 0
 	for {
 		api.OneLoop()
-		if (api.ShouldExitUpdateLoop()) {
+		if api.ShouldExitUpdateLoop() {
 			break
+		}
+
+		// Check if a hard reset is required
+		if api.RequireHardReset() {
+			newAPI, newAPIResult := LoadAppAPI(g_LibraryPath, apiVersion, "App_")
+			if newAPIResult {
+				fmt.printfln("Resetting Application...")
+
+				api.Shutdown()
+
+				// Unload the old library
+				if UnloadAppAPI(api) {
+					dllPathToRemove := fmt.tprintf(
+						"{0}_{1}{2}",
+						g_LibraryPath,
+						api.Info.APIVersion,
+						g_LibraryExtension,
+					)
+					removeError := os.remove(dllPathToRemove)
+					if removeError != os.ERROR_NONE {
+						fmt.printfln("Failed to remove {0}: {1}", dllPathToRemove, removeError)
+					}
+				}
+
+				// Replace the api with the new loaded instance
+				api = newAPI
+
+				api.Init()
+
+				apiVersion += 1
+				continue
+			}
 		}
 
 		// Check if the dll has a new update
@@ -55,7 +88,7 @@ main :: proc() {
 				existingGameMemory: rawptr = api.GetAppMemory()
 
 				// Unload the old library
-				if (UnloadAppAPI(api)) {
+				if UnloadAppAPI(api) {
 					dllPathToRemove := fmt.tprintf(
 						"{0}_{1}{2}",
 						g_LibraryPath,

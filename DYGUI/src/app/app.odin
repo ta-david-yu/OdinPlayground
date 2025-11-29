@@ -5,7 +5,8 @@ import "core:fmt"
 import "../dye"
 
 AppMemory :: struct {
-	EngineMemory: ^dye.EngineMemory,
+	EngineMemory:     ^dye.EngineMemory,
+	RequireHardReset: bool,
 }
 g_Memory: ^AppMemory
 
@@ -17,6 +18,11 @@ App_GetAppMemory :: proc() -> rawptr {
 @(export)
 App_ShouldExitUpdateLoop :: proc() -> bool {
 	return g_Memory.EngineMemory.ExitRequested
+}
+
+@(export)
+App_RequireHardReset :: proc() -> bool {
+	return g_Memory.RequireHardReset
 }
 
 @(export)

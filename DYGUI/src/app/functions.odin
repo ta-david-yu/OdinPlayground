@@ -6,6 +6,8 @@ import dye "../dye"
 import dygui "../dye/gui"
 
 OnAfterInitEngineSystems :: proc() {
+	g_Memory.EngineMemory.RendererClearColor = {180, 180, 180, 255}
+
 	dye.LoadFont(g_Memory.EngineMemory, "fonts/m6x11plus.ttf", 36)
 	dye.LoadFont(g_Memory.EngineMemory, "fonts/Cubic_11.ttf", 33)
 
@@ -58,11 +60,13 @@ OnImGui :: proc(deltaTime: f32) {
 	dygui.PushFontConfig({FontId = 1, FontSize = 22}) // Font Id 1 is for chinese.
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("改顏色", {400, 300})) {
-		fmt.println("Something...")
+		g_Memory.EngineMemory.RendererClearColor = {50, 50, 50, 255}
 	}
-	if (dygui.Button("印出東西", {400, 400})) {
+	if (dygui.Button("重置 DLL", {400, 400})) {
+		g_Memory.RequireHardReset = true
 	}
 	if (dygui.Button("東西", {100, 200})) {
+		fmt.println("Something...")
 	}
 
 	dygui.SetNexItemSize({cast(f32)g_Memory.EngineMemory.MainWindowSettings.Width, 0})
