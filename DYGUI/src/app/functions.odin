@@ -56,6 +56,9 @@ OnImGui :: proc(deltaTime: f32) {
 	dygui.PushFontConfig({FontId = 1, FontSize = 22}) // Font Id 1 is for chinese.
 	if (dygui.Button("改顏色", {400, 300})) {
 	}
+	if (dygui.Button("印出東西", {400, 400})) {
+		fmt.println("Print something...")
+	}
 
 	dygui.SetNexItemSize({cast(f32)g_Memory.EngineMemory.MainWindowSettings.Width, 0})
 	dygui.Text("標題文字在這裡TESTING", {0, 32})
