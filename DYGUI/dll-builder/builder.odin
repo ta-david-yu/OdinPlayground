@@ -3,12 +3,15 @@ package builder
 import "base:runtime"
 import "core:c/libc"
 import "core:fmt"
-import "core:os"
+import "core:os/os2"
 import "core:time"
 
 main :: proc() {
+	// Build once at the startup
+	executeProcToBuildDLL()
+
 	filesToWatch: []runtime.Load_Directory_File = #load_directory("../src/app")
-	fileTimestamps: []os.File_Time = make([]os.File_Time, len(filesToWatch))
+	fileTimestamps: []time.Time = make([]time.Time, len(filesToWatch))
 	defer delete(fileTimestamps)
 
 	// Init timestamps
@@ -16,12 +19,12 @@ main :: proc() {
 		file := filesToWatch[i]
 		fileName := file.name
 		filePath := fmt.tprintf("{0}/{1}", "./src/app", fileName)
-		timestamp, error := os.last_write_time_by_name(filePath)
+		timestamp, error := os2.last_write_time_by_name(filePath)
 		if error != nil {
 			fmt.printfln("Error reading {0}: {1}", filePath, error)
 		}
 		fileTimestamps[i] = timestamp
-		fmt.printfln("Watching file: {0}, time: {1}", fileName, timestamp)
+		fmt.printfln("Watching file: {0}, time: {1}:", fileName, timestamp)
 	}
 
 	// Inifinte loop to check if dll needs to be rebuilt
@@ -35,12 +38,12 @@ main :: proc() {
 			file := filesToWatch[i]
 			fileName := file.name
 			filePath := fmt.tprintf("{0}/{1}", "./src/app", fileName)
-			timestamp, error := os.last_write_time_by_name(filePath)
+			timestamp, error := os2.last_write_time_by_name(filePath)
 			if error != nil {
 				fmt.printf("\nError reading {0}: {1}", filePath, error)
 			} else {
 				if fileTimestamps[i] != timestamp {
-					fmt.printf("\n{0} is dirty ({1})", fileName, timestamp)
+					fmt.printfln("\n{0} is dirty ({1})", fileName, timestamp)
 					shouldRebuildDLL = true
 				}
 			}
@@ -48,14 +51,7 @@ main :: proc() {
 		}
 
 		if shouldRebuildDLL {
-			buildCmd := fmt.ctprintf(
-				"odin build src\\app -debug -build-mode:dll -out:\"build\\debug\\app.dll\"",
-			)
-			if libc.system(buildCmd) != 0 {
-				fmt.println("Failed to build dll")
-			} else {
-				fmt.println("DLL built!")
-			}
+			executeProcToBuildDLL()
 		} else {
 			fmt.printf("\x1b[2K\r{0}", animationFrames[animationFrameCounter])
 			animationFrameCounter += 1
@@ -66,4 +62,15 @@ main :: proc() {
 	}
 
 	return
+}
+
+executeProcToBuildDLL :: proc() {
+	buildCmd := fmt.ctprintf(
+		"odin build src\\app -debug -build-mode:dll -out:\"build\\debug\\app.dll\"",
+	)
+	if libc.system(buildCmd) != 0 {
+		fmt.println("Failed to build dll")
+	} else {
+		fmt.println("DLL built!")
+	}
 }

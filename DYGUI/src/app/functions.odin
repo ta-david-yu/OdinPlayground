@@ -48,21 +48,28 @@ OnUpdate :: proc(deltaTime: f32) {
 }
 
 OnImGui :: proc(deltaTime: f32) {
+	style := dygui.GetStyle()
+	style.Variables.Button.InnerBorderThickness = 2
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("Test Button", {300, 250})) {
 		fmt.println("Test Button with Text Pressed")
 	}
 
 	dygui.PushFontConfig({FontId = 1, FontSize = 22}) // Font Id 1 is for chinese.
+	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("改顏色", {400, 300})) {
+		fmt.println("Something...")
 	}
 	if (dygui.Button("印出東西", {400, 400})) {
-		fmt.println("Print something...")
+	}
+	if (dygui.Button("東西", {100, 200})) {
 	}
 
 	dygui.SetNexItemSize({cast(f32)g_Memory.EngineMemory.MainWindowSettings.Width, 0})
 	dygui.Text("標題文字在這裡TESTING", {0, 32})
 	dygui.PopFontConfig()
+	if (dygui.Button("Flo", {100, 400})) {
+	}
 }
 
 OnRender :: proc(deltaTime: f32) {
