@@ -2,7 +2,6 @@ package dye
 
 import "base:runtime"
 import "core:c"
-import "core:fmt"
 import "core:math"
 import "core:strings"
 
@@ -10,6 +9,20 @@ import "vendor:sdl3"
 import "vendor:sdl3/ttf"
 
 import dygui "gui"
+
+EngineMemory :: struct {
+	MainWindowSettings: WindowSettings,
+	MainWindow:         ^sdl3.Window,
+	MainRenderer:       ^sdl3.Renderer,
+	Input:              Input,
+	RendererClearColor: [4]u8,
+	GUIContext:         ^dygui.GUIContext,
+	Fonts:              [dynamic]^ttf.Font,
+	TextEngine:         ^ttf.TextEngine,
+	Ticks:              u64,
+	TicksLastUpdate:    u64,
+	ExitRequested:      bool,
+}
 
 WindowSettings :: struct {
 	Name:   cstring,
@@ -21,19 +34,6 @@ EngineEventFunctions :: struct {
 	OnUpdate: proc(deltaTime: f32),
 	OnImGui:  proc(deltaTime: f32),
 	OnRender: proc(deltaTime: f32),
-}
-
-EngineMemory :: struct {
-	MainWindowSettings: WindowSettings,
-	MainWindow:         ^sdl3.Window,
-	MainRenderer:       ^sdl3.Renderer,
-	RendererClearColor: [4]u8,
-	GUIContext:         ^dygui.GUIContext,
-	Fonts:              [dynamic]^ttf.Font,
-	TextEngine:         ^ttf.TextEngine,
-	Ticks:              u64,
-	TicksLastUpdate:    u64,
-	ExitRequested:      bool,
 }
 
 SetAppMetadata :: proc(appName, appVersion, appIdentifier: cstring) -> bool {
@@ -109,6 +109,7 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 	deltaTimeInSeconds: f32 = cast(f32)deltaTimeInMiliseconds * 0.001
 
 	// Poll and process system event
+	input: ^Input = &engineMemory.Input
 	event: sdl3.Event
 	for sdl3.PollEvent(&event) {
 		#partial switch event.type {
@@ -132,9 +133,11 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 			break
 		case .MOUSE_BUTTON_DOWN:
 			dygui.GetInputState().MouseButtons[event.button.button - 1] = true
+			input.MouseButtons[event.button.button - 1] = true
 			break
 		case .MOUSE_BUTTON_UP:
 			dygui.GetInputState().MouseButtons[event.button.button - 1] = false
+			input.MouseButtons[event.button.button - 1] = false
 			break
 		}
 	}
@@ -173,6 +176,8 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 	// Tick
 	engineMemory.TicksLastUpdate = engineMemory.Ticks
 	engineMemory.Ticks = sdl3.GetTicks()
+
+	UpdateInputEndOfFrame(&engineMemory.Input)
 
 	// Release memory in the temp allocator at the end of the frame
 	free_all(context.temp_allocator)

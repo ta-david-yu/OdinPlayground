@@ -46,7 +46,12 @@ OnAfterInitEngineSystems :: proc() {
 }
 
 OnUpdate :: proc(deltaTime: f32) {
-
+	if dye.IsMouseButtonDown(&g_Memory.EngineMemory.Input, dye.MouseButton.Left) {
+		fmt.println("LEFT Down")
+	}
+	if dye.IsMouseButtonUp(&g_Memory.EngineMemory.Input, dye.MouseButton.Left) {
+		fmt.println("LEFT Up")
+	}
 }
 
 OnImGui :: proc(deltaTime: f32) {

@@ -155,9 +155,9 @@ Canvas :: struct {
 }
 
 InputState :: struct {
-	MouseButtons:     [NUMBER_OF_MOUSE_BUTTONS]bool,
-	LastMouseButtons: [NUMBER_OF_MOUSE_BUTTONS]bool,
-	MousePosition:    [2]f32,
+	MouseButtons:          [NUMBER_OF_MOUSE_BUTTONS]bool,
+	MouseButtonsPrevFrame: [NUMBER_OF_MOUSE_BUTTONS]bool,
+	MousePosition:         [2]f32,
 }
 
 LastItemData :: struct {
@@ -189,13 +189,13 @@ GetInputState :: proc() -> ^InputState {
 @(private)
 wasMouseButtonDownThisFrame :: proc(mouseButton: u8) -> bool {
 	inputState := GetInputState()
-	return inputState.MouseButtons[mouseButton] && !inputState.LastMouseButtons[mouseButton]
+	return inputState.MouseButtons[mouseButton] && !inputState.MouseButtonsPrevFrame[mouseButton]
 }
 
 @(private)
 wasMouseButtonUpThisFrame :: proc(mouseButton: u8) -> bool {
 	inputState := GetInputState()
-	return !inputState.MouseButtons[mouseButton] && inputState.LastMouseButtons[mouseButton]
+	return !inputState.MouseButtons[mouseButton] && inputState.MouseButtonsPrevFrame[mouseButton]
 }
 
 @(private)
@@ -263,7 +263,7 @@ EndFrame :: proc() {
 
 	// Expire input states
 	for i := 0; i < NUMBER_OF_MOUSE_BUTTONS; i += 1 {
-		state.InputState.LastMouseButtons[i] = state.InputState.MouseButtons[i]
+		state.InputState.MouseButtonsPrevFrame[i] = state.InputState.MouseButtons[i]
 	}
 }
 
