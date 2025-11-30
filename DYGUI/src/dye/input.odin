@@ -13,6 +13,13 @@ Input :: struct {
 	MouseButtons:          [NUMBER_OF_MOUSE_BUTTONS]bool,
 }
 
+UpdateInputEndOfFrame :: proc(input: ^Input) {
+	// Expire input states
+	for i := 0; i < NUMBER_OF_MOUSE_BUTTONS; i += 1 {
+		input.MouseButtonsPrevFrame[i] = input.MouseButtons[i]
+	}
+}
+
 IsMouseButton :: proc(input: ^Input, button: MouseButton) -> bool {
 	return input.MouseButtons[button]
 }
@@ -23,11 +30,4 @@ IsMouseButtonDown :: proc(input: ^Input, button: MouseButton) -> bool {
 
 IsMouseButtonUp :: proc(input: ^Input, button: MouseButton) -> bool {
 	return input.MouseButtonsPrevFrame[button] && !input.MouseButtons[button]
-}
-
-UpdateInputEndOfFrame :: proc(input: ^Input) {
-	// Expire input states
-	for i := 0; i < NUMBER_OF_MOUSE_BUTTONS; i += 1 {
-		input.MouseButtonsPrevFrame[i] = input.MouseButtons[i]
-	}
 }
