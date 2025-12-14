@@ -5,6 +5,8 @@ import "core:fmt"
 import dye "../dye"
 import dygui "../dye/gui"
 
+buttonString: [dynamic]u8
+
 OnAfterInitEngineSystems :: proc() {
 	g_Memory.EngineMemory.RendererClearColor = {180, 180, 180, 255}
 
@@ -52,6 +54,14 @@ OnUpdate :: proc(deltaTime: f32) {
 	if dye.IsMouseButtonUp(&g_Memory.EngineMemory.Input, dye.MouseButton.Left) {
 		fmt.println("LEFT Up")
 	}
+
+	text := g_Memory.EngineMemory.Input.Text
+	for i := 0; i < text.Length; i += 1 {
+		if text.Buffer[i] == 'c' {
+			fmt.println("c is keyed")
+		}
+		append(&buttonString, text.Buffer[i])
+	}
 }
 
 OnImGui :: proc(deltaTime: f32) {
@@ -60,6 +70,9 @@ OnImGui :: proc(deltaTime: f32) {
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("Test Button", {300, 250})) {
 		fmt.println("Test Button with Text Pressed")
+	}
+	if (dygui.Button(cast(string)buttonString[:], {100, 300})) {
+		fmt.println(cast(string)buttonString[:])
 	}
 
 	dygui.PushFontConfig({FontId = 1, FontSize = 22}) // Font Id 1 is for chinese.

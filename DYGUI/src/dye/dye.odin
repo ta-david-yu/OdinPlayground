@@ -2,6 +2,7 @@ package dye
 
 import "base:runtime"
 import "core:c"
+import "core:fmt"
 import "core:math"
 import "core:strings"
 
@@ -96,6 +97,9 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 	dygui.SetContextAsGlobal(engineMemory.GUIContext)
 	dygui.SetMeasureTextFunction(measureText, engineMemory)
 
+	// Start receiving TEXT_INPUT event
+	result := sdl3.StartTextInput(engineMemory.MainWindow)
+
 	return true
 }
 
@@ -138,6 +142,9 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 		case .MOUSE_BUTTON_UP:
 			dygui.GetInputState().MouseButtons[event.button.button - 1] = false
 			input.MouseButtons[event.button.button - 1] = false
+			break
+		case .TEXT_INPUT:
+			PushInputTextInBuffer(input, event.text.text)
 			break
 		}
 	}
