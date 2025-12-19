@@ -1,6 +1,7 @@
 package dye
 
 import "core:fmt"
+import "core:unicode/utf8"
 
 // Value taken from SDL3 MouseButtonFlag (see - sdl3_mouse.odin)
 MouseButton :: enum u32 {
@@ -11,7 +12,7 @@ MouseButton :: enum u32 {
 NUMBER_OF_MOUSE_BUTTONS :: 3
 
 InputText :: struct {
-	Buffer: [256]u8,
+	Buffer: [256]rune,
 	Length: int,
 }
 
@@ -24,7 +25,10 @@ Input :: struct {
 PushInputTextInBuffer :: proc(input: ^Input, text: cstring) {
 	// We first cast the cstring into a string alias for easier operation.
 	textAsStr := cast(string)text
-	input.Text.Length = copy(input.Text.Buffer[:], textAsStr)
+	newRunes := utf8.string_to_runes(textAsStr, context.temp_allocator)
+	input.Text.Length += copy(input.Text.Buffer[input.Text.Length:], newRunes)
+
+	fmt.println(input.Text.Buffer[:input.Text.Length])
 }
 
 UpdateInputEndOfFrame :: proc(input: ^Input) {

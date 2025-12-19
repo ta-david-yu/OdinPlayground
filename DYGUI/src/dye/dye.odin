@@ -293,6 +293,8 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 }
 
 FreeEngine :: proc(engineMemory: ^EngineMemory) {
+	result := sdl3.StopTextInput(engineMemory.MainWindow)
+
 	for i := 0; i < len(engineMemory.Fonts); i += 1 {
 		ttf.CloseFont(engineMemory.Fonts[i])
 	}

@@ -7,6 +7,7 @@ import "../dye"
 AppMemory :: struct {
 	EngineMemory:     ^dye.EngineMemory,
 	RequireHardReset: bool,
+	Game:             GameMemory,
 }
 g_Memory: ^AppMemory
 
@@ -58,6 +59,7 @@ App_HotReload :: proc(appMemory: ^AppMemory) {
 @(export)
 App_Shutdown :: proc() {
 	fmt.println("Shutdown")
+	FreeGameMemory(&g_Memory.Game)
 	dye.FreeEngine(g_Memory.EngineMemory)
 	free(g_Memory)
 }
