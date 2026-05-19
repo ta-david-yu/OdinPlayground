@@ -174,8 +174,8 @@ LoadAppAPI :: proc(
 
 	// This proc call will scan through the symbols in the library and match the symbols to the proc pointers in the provided struct.
 	//
-	// 'Game_' is the prefix for the symbols in the library.
-	// For instance, a procedure in the library named 'Game_Init' will be matched to the field in the struct named 'Init'
+	// `procedureNamePrefix` is the prefix for the symbols in the library.
+	// For instance, a procedure in the library named `${procedureNamePrefix}_Init` will be matched to the field in the struct named 'Init'
 	//
 	// 'Library' specifies the name of the field in the struct that will be used to hold the library handle,
 	// namely `api.Library``

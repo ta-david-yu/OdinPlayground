@@ -26,8 +26,8 @@ GameMemory :: struct {
 OnAfterInitEngineSystems :: proc() {
 	g_Memory.EngineMemory.RendererClearColor = {180, 180, 180, 255}
 
-	dye.LoadFont(g_Memory.EngineMemory, "fonts/m6x11plus.ttf", 36)
-	dye.LoadFont(g_Memory.EngineMemory, "fonts/Cubic_11.ttf", 33)
+	dye.LoadFont(g_Memory.EngineMemory, "assets/fonts/m6x11plus.ttf", 36)
+	dye.LoadFont(g_Memory.EngineMemory, "assets/fonts/Cubic_11.ttf", 33)
 
 	dygui.SetMainFontConfig({FontId = 0, FontSize = 18})
 
@@ -103,6 +103,7 @@ spawnEntityWithRandomWord :: proc() {
 		newEntity.TypeText[i] = runesToCopy[i]
 	}
 
+	// TODO: find an empty slot to put the new entity
 	append(&g_Memory.Game.Entities, newEntity)
 }
 
@@ -122,7 +123,12 @@ OnImGui :: proc(deltaTime: f32) {
 	dygui.PushFontConfig({FontId = 1, FontSize = 22}) // Font Id 1 is for chinese.
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("改顏色", {400, 300})) {
-		g_Memory.EngineMemory.RendererClearColor = {50, 50, 50, 255}
+		g_Memory.EngineMemory.RendererClearColor = {
+			u8(rand.int_max(255)),
+			u8(rand.int_max(255)),
+			u8(rand.int_max(255)),
+			255,
+		}
 	}
 	if (dygui.Button("重置 DLL", {400, 400})) {
 		g_Memory.RequireHardReset = true
@@ -134,14 +140,6 @@ OnImGui :: proc(deltaTime: f32) {
 	if (dygui.Button(buttonName, {100, 300})) {
 		fmt.println(buttonName)
 	}
-
-	/*
-	for i := 0; i < 256; i += 1 {
-		btnName := fmt.tprint("btn", i)
-		if (dygui.Button(btnName, {10 * cast(f32)i, 5 * cast(f32)i})) {
-			fmt.println(btnName)
-		}
-	}*/
 
 	for i := 0; i < len(g_Memory.Game.Entities); i += 1 {
 		entity := &g_Memory.Game.Entities[i]

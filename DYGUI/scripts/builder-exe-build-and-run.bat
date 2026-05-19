@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set "OUT=build\dll-builder\builder.exe"
+set "OUT=build\builder.exe"
 
 :: Build
 odin build dll-builder\builder.odin -file -out:%OUT%
