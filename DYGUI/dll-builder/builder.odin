@@ -3,7 +3,7 @@ package builder
 import "base:runtime"
 import "core:c/libc"
 import "core:fmt"
-import "core:os/os2"
+import "core:os"
 import "core:time"
 
 DirectoryFileInfo :: struct {
@@ -35,7 +35,7 @@ main :: proc() {
 		file := filesToWatch[i]
 		fileName := file.File.name
 		filePath := fmt.tprintf("{0}/{1}", file.Directory, fileName)
-		timestamp, error := os2.last_write_time_by_name(filePath)
+		timestamp, error := os.last_write_time_by_name(filePath)
 		if error != nil {
 			fmt.printfln("Error reading {0}: {1}", filePath, error)
 		}
@@ -54,7 +54,7 @@ main :: proc() {
 			file := filesToWatch[i]
 			fileName := file.File.name
 			filePath := fmt.tprintf("{0}/{1}", file.Directory, fileName)
-			timestamp, error := os2.last_write_time_by_name(filePath)
+			timestamp, error := os.last_write_time_by_name(filePath)
 			if error != nil {
 				fmt.printf("\nError reading {0}: {1}", filePath, error)
 			} else {

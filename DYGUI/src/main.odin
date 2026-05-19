@@ -3,10 +3,11 @@ package main
 import "core:dynlib"
 import "core:fmt"
 import "core:os"
+import "core:time"
 
 AppAPI :: struct {
 	Info:                 struct {
-		DLLTimestamp: os.File_Time,
+		DLLTimestamp: time.Time,
 		APIVersion:   int,
 	},
 	Library:              dynlib.Library,
@@ -159,13 +160,13 @@ LoadAppAPI :: proc(
 	}
 
 	copyFile :: proc(srcPath, dstPath: string) -> bool {
-		data, ok := os.read_entire_file(srcPath)
-		if !ok {
+		data, error := os.read_entire_file(srcPath, context.allocator)
+		if error != nil {
 			return false
 		}
 
-		ok = os.write_entire_file(dstPath, data)
-		if !ok {
+		error = os.write_entire_file(dstPath, data)
+		if error != nil {
 			return false
 		}
 
