@@ -7,11 +7,13 @@ import "core:unicode/utf8"
 
 import dye "../dye"
 import dygui "../dye/gui"
+import hm "../dye/handle_map"
 
 SPAWN_PER_MINUTES :: 20
 
+EntityHandle :: distinct hm.Handle
 Entity :: struct {
-	IsAlive:        bool,
+	Handle:         EntityHandle,
 	Position:       linalg.Vector2f32,
 	TypeText:       [64]rune,
 	TypeTextLength: int,
@@ -19,7 +21,7 @@ Entity :: struct {
 
 GameMemory :: struct {
 	ButtonString:   [dynamic]rune,
-	Entities:       [dynamic]Entity,
+	Entities:       hm.HandleMap(Entity, EntityHandle, 1024),
 	NextSpawnTimer: f32,
 }
 
@@ -77,12 +79,8 @@ OnUpdate :: proc(deltaTime: f32) {
 	}
 
 	// Update entity movement.
-	for i := 0; i < len(g_Memory.Game.Entities); i += 1 {
-		entity := &g_Memory.Game.Entities[i]
-		if !entity.IsAlive {
-			continue
-		}
-
+	itr := hm.MakeIter(&g_Memory.Game.Entities)
+	for entity in hm.Iter(&itr) {
 		entity.Position += {0, 10 * deltaTime}
 	}
 }
@@ -92,7 +90,6 @@ spawnEntityWithRandomWord :: proc() {
 	posX := rand.int_max(cast(int)g_Memory.EngineMemory.MainWindowSettings.Width)
 
 	newEntity: Entity = {
-		IsAlive        = true,
 		Position       = {cast(f32)posX, 0},
 		TypeText       = {},
 		TypeTextLength = 0,
@@ -103,13 +100,7 @@ spawnEntityWithRandomWord :: proc() {
 		newEntity.TypeText[i] = runesToCopy[i]
 	}
 
-	// TODO: find an empty slot to put the new entity
-	append(&g_Memory.Game.Entities, newEntity)
-}
-
-@(private = "file")
-killEntity :: proc(entityIndex: int) {
-	g_Memory.Game.Entities[entityIndex].IsAlive = false
+	hm.AddWithUndo(&g_Memory.Game.Entities, newEntity)
 }
 
 OnImGui :: proc(deltaTime: f32) {
@@ -141,18 +132,14 @@ OnImGui :: proc(deltaTime: f32) {
 		fmt.println(buttonName)
 	}
 
-	for i := 0; i < len(g_Memory.Game.Entities); i += 1 {
-		entity := &g_Memory.Game.Entities[i]
-		if !entity.IsAlive {
-			continue
-		}
-
+	itr := hm.MakeIter(&g_Memory.Game.Entities)
+	for entity in hm.Iter(&itr) {
 		btnName := utf8.runes_to_string(
 			entity.TypeText[:entity.TypeTextLength],
 			context.temp_allocator,
 		)
 		if dygui.Button(btnName, entity.Position) {
-			entity.IsAlive = false
+			hm.RemoveWithUndo(&g_Memory.Game.Entities, entity.Handle)
 		}
 	}
 
@@ -169,5 +156,5 @@ OnRender :: proc(deltaTime: f32) {
 
 FreeGameMemory :: proc(memory: ^GameMemory) {
 	delete(memory.ButtonString)
-	delete(memory.Entities)
+	hm.Delete(&memory.Entities)
 }
