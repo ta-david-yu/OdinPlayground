@@ -1,5 +1,7 @@
 # Getting Started
 
+Odin version: [dev-2026-05](https://github.com/odin-lang/Odin/releases/tag/dev-2026-05)
+
 The project has hot-reloading support. The actual game/app logic is built as dll and the main.exe loads the dll dynamically.
 
 To simply build and run the project, do the following in the command line:
