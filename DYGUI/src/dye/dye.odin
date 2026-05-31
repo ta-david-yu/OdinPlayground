@@ -23,6 +23,7 @@ EngineMemory :: struct {
 	Ticks:              u64,
 	TicksLastUpdate:    u64,
 	ExitRequested:      bool,
+	Fps:                f64,
 }
 
 WindowSettings :: struct {
@@ -109,6 +110,8 @@ OnHotReload :: proc(engineMemory: ^EngineMemory) {
 }
 
 OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventFunctions) {
+
+	startCounter := sdl3.GetPerformanceCounter()
 	deltaTimeInMiliseconds := engineMemory.Ticks - engineMemory.TicksLastUpdate
 	deltaTimeInSeconds: f32 = cast(f32)deltaTimeInMiliseconds * 0.001
 
@@ -188,6 +191,11 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 
 	// Release memory in the temp allocator at the end of the frame
 	free_all(context.temp_allocator)
+
+	endCounter := sdl3.GetPerformanceCounter()
+
+	elapsed := cast(f64)(endCounter - startCounter) / cast(f64)sdl3.GetPerformanceFrequency()
+	engineMemory.Fps = 1.0 / elapsed
 }
 
 @(private)

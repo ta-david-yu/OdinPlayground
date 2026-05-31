@@ -3,26 +3,31 @@ package app
 import "core:fmt"
 import "core:math/linalg"
 import "core:math/rand"
+import "core:strconv"
+import "core:strings"
 import "core:unicode/utf8"
+
+import "vendor:sdl3"
 
 import dye "../dye"
 import dygui "../dye/gui"
-import hm "../dye/handle_map"
+import hm "core:container/handle_map"
 
-SPAWN_PER_MINUTES :: 20
+SPAWN_PER_MINUTES :: 64
 
-EntityHandle :: distinct hm.Handle
+EntityHandle :: distinct hm.Handle64
 Entity :: struct {
-	Handle:         EntityHandle,
+	handle:         EntityHandle,
 	Position:       linalg.Vector2f32,
 	TypeText:       [64]rune,
 	TypeTextLength: int,
 }
 
 GameMemory :: struct {
-	ButtonString:   [dynamic]rune,
-	Entities:       hm.HandleMap(Entity, EntityHandle, 1024),
-	NextSpawnTimer: f32,
+	TitleTextString: [dynamic]rune,
+	ButtonString:    [dynamic]rune,
+	Entities:        hm.Dynamic_Handle_Map(Entity, EntityHandle),
+	NextSpawnTimer:  f32,
 }
 
 OnAfterInitEngineSystems :: proc() {
@@ -72,16 +77,23 @@ OnUpdate :: proc(deltaTime: f32) {
 	}
 
 	// Update spawn timer.
-	g_Memory.Game.NextSpawnTimer -= deltaTime
-	if (g_Memory.Game.NextSpawnTimer <= 0) {
-		g_Memory.Game.NextSpawnTimer += 60 / SPAWN_PER_MINUTES
-		spawnEntityWithRandomWord()
+	if dye.IsMouseButton(&g_Memory.EngineMemory.Input, dye.MouseButton.Right) {
+		g_Memory.Game.NextSpawnTimer -= deltaTime
+		if (g_Memory.Game.NextSpawnTimer <= 0) {
+			g_Memory.Game.NextSpawnTimer += 60.0 / SPAWN_PER_MINUTES
+			spawnEntityWithRandomWord()
+		}
+	}
+
+	if dye.IsMouseButtonDown(&g_Memory.EngineMemory.Input, dye.MouseButton.Middle) {
+		guiContext := dygui.GetGUIContext()
+		guiContext.RenderButton = !guiContext.RenderButton
 	}
 
 	// Update entity movement.
-	itr := hm.MakeIter(&g_Memory.Game.Entities)
-	for entity in hm.Iter(&itr) {
-		entity.Position += {0, 10 * deltaTime}
+	itr := hm.iterator_make(&g_Memory.Game.Entities)
+	for entity, handle in hm.iterate(&itr) {
+		entity.Position += {0, 100 * deltaTime}
 	}
 }
 
@@ -100,18 +112,15 @@ spawnEntityWithRandomWord :: proc() {
 		newEntity.TypeText[i] = runesToCopy[i]
 	}
 
-	hm.AddWithUndo(&g_Memory.Game.Entities, newEntity)
+	h := hm.add(&g_Memory.Game.Entities, newEntity)
 }
 
 OnImGui :: proc(deltaTime: f32) {
 	style := dygui.GetStyle()
 	style.Variables.Button.InnerBorderThickness = 2
-	dygui.SetNexItemSize({150, 0})
-	if (dygui.Button("Test Button", {300, 250})) {
-		fmt.println("Test Button with Text Pressed")
-	}
 
 	dygui.PushFontConfig({FontId = 1, FontSize = 22}) // Font Id 1 is for chinese.
+
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("改顏色", {400, 300})) {
 		g_Memory.EngineMemory.RendererClearColor = {
@@ -124,37 +133,76 @@ OnImGui :: proc(deltaTime: f32) {
 	if (dygui.Button("重置 DLL", {400, 400})) {
 		g_Memory.RequireHardReset = true
 	}
-	if (dygui.Button("東西", {100, 200})) {
-		fmt.println("Something...")
-	}
 	buttonName := utf8.runes_to_string(g_Memory.Game.ButtonString[:], context.temp_allocator)
 	if (dygui.Button(buttonName, {100, 300})) {
 		fmt.println(buttonName)
 	}
 
-	itr := hm.MakeIter(&g_Memory.Game.Entities)
-	for entity in hm.Iter(&itr) {
+	itr := hm.iterator_make(&g_Memory.Game.Entities)
+	for entity, handle in hm.iterate(&itr) {
 		btnName := utf8.runes_to_string(
 			entity.TypeText[:entity.TypeTextLength],
 			context.temp_allocator,
 		)
 		if dygui.Button(btnName, entity.Position) {
-			hm.RemoveWithUndo(&g_Memory.Game.Entities, entity.Handle)
+			hm.remove(&g_Memory.Game.Entities, handle)
 		}
 	}
 
 	dygui.SetNexItemSize({cast(f32)g_Memory.EngineMemory.MainWindowSettings.Width, 0})
-	dygui.Text("標題文字在這裡TESTING", {0, 32})
+
 	dygui.PopFontConfig()
-	if (dygui.Button("Flo", {100, 400})) {
+
+	{
+		titleTextStrBuff := new([64]byte, context.temp_allocator)
+		titleTextStr := strconv.write_int(
+			titleTextStrBuff[:],
+			cast(i64)hm.len(g_Memory.Game.Entities),
+			10,
+		)
+		dygui.Text(titleTextStr, {0, 32})
 	}
+
+	{
+		stringBuilder := strings.builder_make(context.temp_allocator)
+		strings.write_string(&stringBuilder, "fps: ")
+		strings.write_f64(&stringBuilder, g_Memory.EngineMemory.Fps, 'f')
+		dygui.Text(strings.to_string(stringBuilder), {20, 48})
+	}
+
 }
 
 OnRender :: proc(deltaTime: f32) {
 
+	sdl3.SetRenderDrawColor(g_Memory.EngineMemory.MainRenderer, 255, 0, 0, 255)
+
+	rect := sdl3.FRect{}
+	rect.x, rect.y = 0, 0
+	rect.w, rect.h = 50, 50
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
 }
 
 FreeGameMemory :: proc(memory: ^GameMemory) {
 	delete(memory.ButtonString)
-	hm.Delete(&memory.Entities)
+	hm.clear(&memory.Entities)
 }

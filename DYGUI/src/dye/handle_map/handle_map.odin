@@ -399,7 +399,11 @@ Valid :: proc(m: HandleMap($T, $HT, $Max), h: HT) -> bool {
 }
 
 // Tells you how many valid items there are in the handle map.
+// This doesn't include the nil object at index 0, which is never considered a valid item.
 Length :: proc(m: HandleMap($T, $HT, $Max)) -> int {
+	if (builtin.len(m.Items) == 0) {
+		return 0
+	}
 	return builtin.len(m.Items) - builtin.len(m.UnusedItems) - 1 // -1 because index 0 is a nil-item and is never considered as an valid item.
 }
 
