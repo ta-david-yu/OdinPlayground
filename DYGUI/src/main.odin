@@ -182,6 +182,8 @@ LoadAppAPI :: proc(
 			return false
 		}
 
+		defer delete(data)
+
 		error = os.write_entire_file(dstPath, data)
 		if error != nil {
 			return false
