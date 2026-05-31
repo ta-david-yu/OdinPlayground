@@ -1,5 +1,6 @@
 package app
 
+import hm "core:container/handle_map"
 import "core:fmt"
 import "core:math/linalg"
 import "core:math/rand"
@@ -11,7 +12,6 @@ import "vendor:sdl3"
 
 import dye "../dye"
 import dygui "../dye/gui"
-import hm "core:container/handle_map"
 
 SPAWN_PER_MINUTES :: 64
 

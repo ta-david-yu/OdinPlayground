@@ -145,6 +145,7 @@ GUIContext :: struct {
 
 	// Next item / widget data
 	NextItemData: NextItemData,
+	RenderButton: bool,
 }
 
 g_Context: ^GUIContext = {}
@@ -475,6 +476,9 @@ Button :: proc(label: string, position: [2]f32) -> bool {
 
 	cornerRadius := style.Variables.Button.CornerRadius
 
+	if !guiContext.RenderButton {
+		return isClicked
+	}
 	// Shadow
 	if (style.Variables.Shadow.Offset.x > 0 || style.Variables.Shadow.Offset.y > 0) {
 		hardShadow: bool = style.Variables.Shadow.Softness == 0
