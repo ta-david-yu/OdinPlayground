@@ -12,8 +12,18 @@ DirectoryFileInfo :: struct {
 }
 
 main :: proc() {
+	isDebug := false
+
+	if len(os.args) > 1 {
+		isDebug = os.args[1] == "debug"
+
+		if isDebug {
+			fmt.println("Building dll with debug flag")
+		}
+	}
+
 	// Build once at the startup
-	executeProcToBuildDLL()
+	executeProcToBuildDLL(isDebug)
 
 	filesToWatch: [dynamic]DirectoryFileInfo
 
@@ -70,7 +80,7 @@ main :: proc() {
 		}
 
 		if shouldRebuildDLL {
-			executeProcToBuildDLL()
+			executeProcToBuildDLL(isDebug)
 		} else {
 			fmt.printf("\x1b[2K\r{0}", animationFrames[animationFrameCounter])
 			animationFrameCounter += 1
@@ -78,15 +88,17 @@ main :: proc() {
 				animationFrameCounter = 0
 			}
 		}
+
+		// Release memory in the temp allocator at the end of the frame
+		free_all(context.temp_allocator)
 	}
 
 	return
 }
 
-executeProcToBuildDLL :: proc() {
-	buildCmd := fmt.ctprintf(
-		"odin build src\\app -debug -build-mode:dll -out:\"build\\debug\\app.dll\"",
-	)
+executeProcToBuildDLL :: proc(isDebug: bool) {
+	buildCmd :=
+		!isDebug ? fmt.ctprintf("odin build src\\app -build-mode:dll -out:\"build\\app.dll\"") : fmt.ctprintf("odin build src\\app -debug -build-mode:dll -out:\"build\\debug\\app.dll\"")
 	if libc.system(buildCmd) != 0 {
 		fmt.println("Failed to build dll")
 	} else {

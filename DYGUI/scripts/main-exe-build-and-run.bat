@@ -13,6 +13,7 @@ if "%~1"=="" (
         set "DEBUGFLAG="
     )
 )
+
 :: Ensure the directory exists
 if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
