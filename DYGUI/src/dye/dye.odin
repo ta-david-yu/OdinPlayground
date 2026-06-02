@@ -2,7 +2,6 @@ package dye
 
 import "base:runtime"
 import "core:c"
-import "core:fmt"
 import "core:math"
 import "core:strings"
 
@@ -10,6 +9,7 @@ import "vendor:sdl3"
 import "vendor:sdl3/ttf"
 
 import dygui "gui"
+import prof "prof"
 
 EngineMemory :: struct {
 	MainWindowSettings: WindowSettings,
@@ -101,6 +101,8 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 	// Start receiving TEXT_INPUT event
 	result := sdl3.StartTextInput(engineMemory.MainWindow)
 
+	prof.init()
+
 	return true
 }
 
@@ -152,35 +154,41 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 		}
 	}
 
-	// Event: OnUpdate
-	eventFunctions.OnUpdate(deltaTimeInSeconds)
-
-	// GUI
-	dygui.NewFrame()
 	{
-		// Event: OnImGui
-		eventFunctions.OnImGui(deltaTimeInSeconds)
-	}
-	dygui.EndFrame()
+		// Event: OnUpdate
+		{
+			eventFunctions.OnUpdate(deltaTimeInSeconds)
+		}
 
-	// Render
-	{
-		// Clear
-		sdl3.SetRenderDrawColor(
-			engineMemory.MainRenderer,
-			engineMemory.RendererClearColor.r,
-			engineMemory.RendererClearColor.g,
-			engineMemory.RendererClearColor.b,
-			engineMemory.RendererClearColor.a,
-		)
-		sdl3.RenderClear(engineMemory.MainRenderer)
+		// GUI
+		{
+			dygui.NewFrame()
+			{
+				// Event: OnImGui
+				eventFunctions.OnImGui(deltaTimeInSeconds)
+			}
+			dygui.EndFrame()
+		}
 
-		// Event: OnRender
-		eventFunctions.OnRender(deltaTimeInSeconds)
-		renderImGuiCommands(engineMemory)
+		// Render
+		{
+			// Clear
+			sdl3.SetRenderDrawColor(
+				engineMemory.MainRenderer,
+				engineMemory.RendererClearColor.r,
+				engineMemory.RendererClearColor.g,
+				engineMemory.RendererClearColor.b,
+				engineMemory.RendererClearColor.a,
+			)
+			sdl3.RenderClear(engineMemory.MainRenderer)
 
-		// Present
-		sdl3.RenderPresent(engineMemory.MainRenderer)
+			// Event: OnRender
+			eventFunctions.OnRender(deltaTimeInSeconds)
+			renderImGuiCommands(engineMemory)
+
+			// Present
+			sdl3.RenderPresent(engineMemory.MainRenderer)
+		}
 	}
 
 	// Tick
@@ -203,6 +211,20 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 	renderer := engineMemory.MainRenderer
 	fonts := engineMemory.Fonts
 	textEngine := engineMemory.TextEngine
+
+	{
+		font := fonts[0]
+
+		currentFontSize := ttf.GetFontSize(font)
+		ttf.SetFontSize(font, 10)
+
+		textContentInCStr := strings.clone_to_cstring("Dummy", context.temp_allocator)
+
+		ttfText: ^ttf.Text = ttf.CreateText(textEngine, font, textContentInCStr, 0)
+		setColorResult := ttf.SetTextColor(ttfText, 255, 0, 0, 255)
+		defer ttf.DestroyText(ttfText)
+		result := ttf.DrawRendererText(ttfText, 100, 200)
+	}
 
 	frame := &dygui.GetState().Frame
 	for i := 0; i < frame.NumberOfDrawCommands; i += 1 {
@@ -301,6 +323,8 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 }
 
 FreeEngine :: proc(engineMemory: ^EngineMemory) {
+	prof.deinit()
+
 	result := sdl3.StopTextInput(engineMemory.MainWindow)
 
 	for i := 0; i < len(engineMemory.Fonts); i += 1 {
@@ -360,6 +384,8 @@ measureText :: proc(
 
 	measuredTextWidth, measuredTextHeight: c.int = 0, 0
 	textContentInCStr := strings.clone_to_cstring(textContent, context.temp_allocator)
+
+	// GetStringSize is slow when ttf library has not cached any glyphs for rendering.
 	getSizeResult := ttf.GetStringSize(
 		font,
 		textContentInCStr,

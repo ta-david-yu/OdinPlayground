@@ -12,8 +12,9 @@ import "vendor:sdl3"
 
 import dye "../dye"
 import dygui "../dye/gui"
+import prof "../dye/prof"
 
-SPAWN_PER_MINUTES :: 64
+SPAWN_PER_MINUTES :: 512
 
 EntityHandle :: distinct hm.Handle64
 Entity :: struct {
@@ -68,6 +69,11 @@ OnAfterInitEngineSystems :: proc() {
 	style.Colors.Button.OuterBorderIdle = {0, 0, 0, 255}
 	style.Colors.Button.OuterBorderHovered = {0, 0, 0, 255}
 	style.Colors.Button.OuterBorderActive = {0, 0, 0, 255}
+
+	// Spawn 100 entities on init
+	for i in 0 ..< 5 {
+		spawnEntityWithRandomWord()
+	}
 }
 
 OnUpdate :: proc(deltaTime: f32) {
@@ -83,11 +89,6 @@ OnUpdate :: proc(deltaTime: f32) {
 			g_Memory.Game.NextSpawnTimer += 60.0 / SPAWN_PER_MINUTES
 			spawnEntityWithRandomWord()
 		}
-	}
-
-	if dye.IsMouseButtonDown(&g_Memory.EngineMemory.Input, dye.MouseButton.Middle) {
-		guiContext := dygui.GetGUIContext()
-		guiContext.RenderButton = !guiContext.RenderButton
 	}
 
 	// Update entity movement.
@@ -138,6 +139,7 @@ OnImGui :: proc(deltaTime: f32) {
 		fmt.println(buttonName)
 	}
 
+
 	itr := hm.iterator_make(&g_Memory.Game.Entities)
 	for entity, handle in hm.iterate(&itr) {
 		btnName := utf8.runes_to_string(
@@ -179,30 +181,13 @@ OnRender :: proc(deltaTime: f32) {
 	rect := sdl3.FRect{}
 	rect.x, rect.y = 0, 0
 	rect.w, rect.h = 50, 50
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
-	sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	for i in 0 ..< 100 {
+		sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	}
 }
 
 FreeGameMemory :: proc(memory: ^GameMemory) {
+	delete(memory.TitleTextString)
 	delete(memory.ButtonString)
-	hm.clear(&memory.Entities)
+	hm.dynamic_destroy(&memory.Entities)
 }

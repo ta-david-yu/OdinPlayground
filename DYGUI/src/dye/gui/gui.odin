@@ -1,5 +1,6 @@
 package gui
 
+import prof "../prof"
 import "core:hash"
 
 NUMBER_OF_MOUSE_BUTTONS :: 5
@@ -145,7 +146,6 @@ GUIContext :: struct {
 
 	// Next item / widget data
 	NextItemData: NextItemData,
-	RenderButton: bool,
 }
 
 g_Context: ^GUIContext = {}
@@ -373,11 +373,13 @@ Button :: proc(label: string, position: [2]f32) -> bool {
 	guiContext := GetGUIContext()
 	fontConfig := style.MainFontConfig
 
-	textDimensions := guiContext.Functions.MeasureText(
-		label,
-		fontConfig,
-		guiContext.Functions.MeasureTextUserData,
-	)
+	textDimensions: Dimensions
+	{
+		measureText := guiContext.Functions.MeasureText
+		measureTextData := guiContext.Functions.MeasureTextUserData
+		textDimensions = measureText(label, fontConfig, measureTextData)
+	}
+
 	textRect: Rect
 	fullRect: Rect
 
@@ -422,6 +424,7 @@ Button :: proc(label: string, position: [2]f32) -> bool {
 			Size     = textDimensions.xy,
 		}
 	}
+
 	addItem(fullRect, id)
 
 	mouseButton: u8 = 0
@@ -476,9 +479,6 @@ Button :: proc(label: string, position: [2]f32) -> bool {
 
 	cornerRadius := style.Variables.Button.CornerRadius
 
-	if !guiContext.RenderButton {
-		return isClicked
-	}
 	// Shadow
 	if (style.Variables.Shadow.Offset.x > 0 || style.Variables.Shadow.Offset.y > 0) {
 		hardShadow: bool = style.Variables.Shadow.Softness == 0

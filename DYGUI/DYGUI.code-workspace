@@ -1,11 +1,14 @@
 {
 	"folders": [
 		{
-			"path": "."
+			"path": ".",
 		},
 		{
-			"path": "C:/Program Files/Odin/core"
-		}
+			"path": "C:/Program Files/Odin/core",
+		},
+		{
+			"path": "C:/Program Files/Odin/vendor",
+		},
 	],
-	"settings": {}
+	"settings": {},
 }
