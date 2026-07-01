@@ -1,6 +1,5 @@
 package gui
 
-import prof "../prof"
 import "core:hash"
 
 NUMBER_OF_MOUSE_BUTTONS :: 5

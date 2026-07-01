@@ -49,15 +49,15 @@ when PROF_MODE == .All_Funcs {
 }
 
 // Call once at the very start of the main thread
-init :: proc(allocator := context.allocator) {
+Init :: proc(allocator := context.allocator) {
 	when PROF_MODE != .None {
 		spall_ctx = spall.context_create("trace.spall")
-		thread_init(allocator)
+		ThreadInit(allocator)
 	}
 }
 
 // Call once per spawned thread to allocate the thread-local buffer
-thread_init :: proc(allocator := context.allocator) {
+ThreadInit :: proc(allocator := context.allocator) {
 	when PROF_MODE != .None {
 		prof_allocator = allocator
 		buffer_backing = make([]u8, spall.BUFFER_DEFAULT_SIZE, allocator)
@@ -66,15 +66,15 @@ thread_init :: proc(allocator := context.allocator) {
 }
 
 // Call once at the very end of the main thread
-deinit :: proc() {
+Deinit :: proc() {
 	defer when PROF_MODE != .None {
-		thread_deinit()
+		ThreadDeinit()
 		spall.context_destroy(&spall_ctx)
 	}
 }
 
 // Call once at the very end of each spawned thread
-thread_deinit :: proc() {
+ThreadDeinit :: proc() {
 	defer when PROF_MODE != .None {
 		spall.buffer_destroy(&spall_ctx, &spall_buffer)
 		delete(buffer_backing, prof_allocator)
@@ -83,7 +83,7 @@ thread_deinit :: proc() {
 
 // Create a scoped event for each frame of your game/application which automatically
 // ends itself at the end of the caller's scope.
-frame :: proc(label := "Frame", loc := #caller_location) {
+Frame :: proc(label := "Frame", loc := #caller_location) {
 	when PROF_MODE == .Frame {
 		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, label, "", loc)
 	}
@@ -91,21 +91,21 @@ frame :: proc(label := "Frame", loc := #caller_location) {
 
 // Create a sub-event for the parts of each frame (ex. input, update, draw).
 // Use within separate dedicate functions for each frame part for simplicity.
-frame_part :: proc(loc := #caller_location) {
+FramePart :: proc(loc := #caller_location) {
 	when PROF_MODE == .Frame {
 		spall.SCOPED_EVENT(&spall_ctx, &spall_buffer, loc.procedure, "", loc)
 	}
 }
 
 // A lower level profiling primitive to be called at the start of a section
-begin :: proc(label := "", loc := #caller_location) {
+Begin :: proc(label := "", loc := #caller_location) {
 	when PROF_MODE != .None {
 		spall._buffer_begin(&spall_ctx, &spall_buffer, label, "", loc)
 	}
 }
 
 // A lower level profiling primitive to be called at the end of a section
-end :: proc() {
+End :: proc() {
 	when PROF_MODE != .None {
 		spall._buffer_end(&spall_ctx, &spall_buffer)
 	}

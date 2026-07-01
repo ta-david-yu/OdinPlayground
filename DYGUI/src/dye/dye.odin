@@ -15,8 +15,9 @@ EngineMemory :: struct {
 	MainWindowSettings: WindowSettings,
 	MainWindow:         ^sdl3.Window,
 	MainRenderer:       ^sdl3.Renderer,
+	GPUDevice:          ^sdl3.GPUDevice,
 	Input:              Input,
-	RendererClearColor: [4]u8,
+	ClearColor:         [4]u8,
 	GUIContext:         ^dygui.GUIContext,
 	Fonts:              [dynamic]^ttf.Font,
 	TextEngine:         ^ttf.TextEngine,
@@ -65,25 +66,33 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 		return false
 	}
 
-	rendererDriverName: cstring = ""
-	engineMemory.MainRenderer = sdl3.CreateRenderer(engineMemory.MainWindow, rendererDriverName)
-	if (engineMemory.MainRenderer == nil) {
-		sdl3.Log(sdl3.GetError())
+	shaderFormats: sdl3.GPUShaderFormat = {
+		sdl3.GPUShaderFormatFlag.SPIRV,
+		sdl3.GPUShaderFormatFlag.DXBC,
+		sdl3.GPUShaderFormatFlag.DXIL,
+		sdl3.GPUShaderFormatFlag.MSL,
+	}
+	engineMemory.GPUDevice = sdl3.CreateGPUDevice(shaderFormats, false, nil)
+	if engineMemory.GPUDevice == nil {
+		sdl3.Log("Could not create GPU device: %s", sdl3.GetError())
 		return false
 	}
-	sdl3.SetRenderLogicalPresentation(
-		engineMemory.MainRenderer,
-		windowSettings.Width,
-		windowSettings.Height,
-		sdl3.RendererLogicalPresentation.LETTERBOX,
-	)
+
+	rendererDriverName: cstring = sdl3.GetGPUDeviceDriver(engineMemory.GPUDevice)
+	sdl3.Log("GPU device created for driver %s", rendererDriverName)
+
+	claimSuccess := sdl3.ClaimWindowForGPUDevice(engineMemory.GPUDevice, engineMemory.MainWindow)
+	if (!claimSuccess) {
+		sdl3.Log("Failed to claim the window for gpu device: %s", sdl3.GetError())
+		return false
+	}
 
 	if (!ttf.Init()) {
 		sdl3.Log("Couldn't initialize ttf")
 		return false
 	}
 
-	engineMemory.TextEngine = ttf.CreateRendererTextEngine(engineMemory.MainRenderer)
+	engineMemory.TextEngine = ttf.CreateGPUTextEngine(engineMemory.GPUDevice)
 	if (engineMemory.TextEngine == nil) {
 		sdl3.Log(sdl3.GetError())
 		return false
@@ -101,7 +110,7 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 	// Start receiving TEXT_INPUT event
 	result := sdl3.StartTextInput(engineMemory.MainWindow)
 
-	prof.init()
+	prof.Init()
 
 	return true
 }
@@ -149,7 +158,7 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 			input.MouseButtons[event.button.button - 1] = false
 			break
 		case .TEXT_INPUT:
-			PushInputTextInBuffer(input, event.text.text)
+			Input_PushInputTextInBuffer(input, event.text.text)
 			break
 		}
 	}
@@ -172,22 +181,55 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 
 		// Render
 		{
-			// Clear
-			sdl3.SetRenderDrawColor(
-				engineMemory.MainRenderer,
-				engineMemory.RendererClearColor.r,
-				engineMemory.RendererClearColor.g,
-				engineMemory.RendererClearColor.b,
-				engineMemory.RendererClearColor.a,
+			commandBuffer: ^sdl3.GPUCommandBuffer = sdl3.AcquireGPUCommandBuffer(
+				engineMemory.GPUDevice,
 			)
-			sdl3.RenderClear(engineMemory.MainRenderer)
 
-			// Event: OnRender
-			eventFunctions.OnRender(deltaTimeInSeconds)
-			renderImGuiCommands(engineMemory)
+			if commandBuffer == nil {
+				sdl3.Log("Failed to acquire command buffer: %s", sdl3.GetError())
+			}
 
-			// Present
-			sdl3.RenderPresent(engineMemory.MainRenderer)
+			windowSwapChainTexture: ^sdl3.GPUTexture
+			if !sdl3.WaitAndAcquireGPUSwapchainTexture(
+				commandBuffer,
+				engineMemory.MainWindow,
+				&windowSwapChainTexture,
+				nil,
+				nil,
+			) {
+				sdl3.Log("Failed to acquire GPU swapchain texture: %s", sdl3.GetError())
+			}
+
+			clearFColor := cast(sdl3.FColor)(cast([4]f32)engineMemory.ClearColor / 255.0)
+			windoColorTargetInfo: sdl3.GPUColorTargetInfo = {
+				texture     = windowSwapChainTexture,
+				cycle       = true,
+				load_op     = sdl3.GPULoadOp.CLEAR,
+				store_op    = sdl3.GPUStoreOp.STORE,
+				clear_color = clearFColor,
+			}
+
+			// Start the render pass that draws on the window color target
+			{
+				renderPass: ^sdl3.GPURenderPass = sdl3.BeginGPURenderPass(
+					commandBuffer,
+					&windoColorTargetInfo,
+					1,
+					nil,
+				)
+
+				/*
+				// Event: OnRender
+				eventFunctions.OnRender(deltaTimeInSeconds)
+				renderImGuiCommands(engineMemory)
+				*/
+
+				sdl3.EndGPURenderPass(renderPass)
+			}
+
+			if !sdl3.SubmitGPUCommandBuffer(commandBuffer) {
+				sdl3.Log("Failed to submit gpu command buffer: %s", sdl3.GetError())
+			}
 		}
 	}
 
@@ -195,7 +237,7 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 	engineMemory.TicksLastUpdate = engineMemory.Ticks
 	engineMemory.Ticks = sdl3.GetTicks()
 
-	UpdateInputEndOfFrame(&engineMemory.Input)
+	Input_UpdateInputEndOfFrame(&engineMemory.Input)
 
 	// Release memory in the temp allocator at the end of the frame
 	free_all(context.temp_allocator)
@@ -323,7 +365,7 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 }
 
 FreeEngine :: proc(engineMemory: ^EngineMemory) {
-	prof.deinit()
+	prof.Deinit()
 
 	result := sdl3.StopTextInput(engineMemory.MainWindow)
 
@@ -334,10 +376,11 @@ FreeEngine :: proc(engineMemory: ^EngineMemory) {
 
 	dygui.FreeContext(engineMemory.GUIContext)
 
-	ttf.DestroyRendererTextEngine(engineMemory.TextEngine)
+	ttf.DestroyGPUTextEngine(engineMemory.TextEngine)
 
-	if (engineMemory.MainRenderer != nil) {
-		sdl3.DestroyRenderer(engineMemory.MainRenderer)
+	if (engineMemory.GPUDevice != nil) {
+		sdl3.ReleaseWindowFromGPUDevice(engineMemory.GPUDevice, engineMemory.MainWindow)
+		sdl3.DestroyGPUDevice(engineMemory.GPUDevice)
 	}
 
 	if engineMemory.MainWindow != nil {

@@ -22,7 +22,7 @@ Input :: struct {
 	Text:                  InputText,
 }
 
-PushInputTextInBuffer :: proc(input: ^Input, text: cstring) {
+Input_PushInputTextInBuffer :: proc(input: ^Input, text: cstring) {
 	// We first cast the cstring into a string alias for easier operation.
 	textAsStr := cast(string)text
 	newRunes := utf8.string_to_runes(textAsStr, context.temp_allocator)
@@ -31,7 +31,7 @@ PushInputTextInBuffer :: proc(input: ^Input, text: cstring) {
 	fmt.println(input.Text.Buffer[:input.Text.Length])
 }
 
-UpdateInputEndOfFrame :: proc(input: ^Input) {
+Input_UpdateInputEndOfFrame :: proc(input: ^Input) {
 	// Expire input states
 	for i := 0; i < NUMBER_OF_MOUSE_BUTTONS; i += 1 {
 		input.MouseButtonsPrevFrame[i] = input.MouseButtons[i]
@@ -40,14 +40,14 @@ UpdateInputEndOfFrame :: proc(input: ^Input) {
 	input.Text.Length = 0
 }
 
-IsMouseButton :: proc(input: ^Input, button: MouseButton) -> bool {
+Input_IsMouseButton :: proc(input: ^Input, button: MouseButton) -> bool {
 	return input.MouseButtons[button]
 }
 
-IsMouseButtonDown :: proc(input: ^Input, button: MouseButton) -> bool {
+Input_IsMouseButtonDown :: proc(input: ^Input, button: MouseButton) -> bool {
 	return !input.MouseButtonsPrevFrame[button] && input.MouseButtons[button]
 }
 
-IsMouseButtonUp :: proc(input: ^Input, button: MouseButton) -> bool {
+Input_IsMouseButtonUp :: proc(input: ^Input, button: MouseButton) -> bool {
 	return input.MouseButtonsPrevFrame[button] && !input.MouseButtons[button]
 }

@@ -32,7 +32,7 @@ GameMemory :: struct {
 }
 
 OnAfterInitEngineSystems :: proc() {
-	g_Memory.EngineMemory.RendererClearColor = {180, 180, 180, 255}
+	g_Memory.EngineMemory.ClearColor = {180, 180, 180, 255}
 
 	dye.LoadFont(g_Memory.EngineMemory, "assets/fonts/m6x11plus.ttf", 36)
 	dye.LoadFont(g_Memory.EngineMemory, "assets/fonts/Cubic_11.ttf", 33)
@@ -83,7 +83,7 @@ OnUpdate :: proc(deltaTime: f32) {
 	}
 
 	// Update spawn timer.
-	if dye.IsMouseButton(&g_Memory.EngineMemory.Input, dye.MouseButton.Right) {
+	if dye.Input_IsMouseButton(&g_Memory.EngineMemory.Input, dye.MouseButton.Right) {
 		g_Memory.Game.NextSpawnTimer -= deltaTime
 		if (g_Memory.Game.NextSpawnTimer <= 0) {
 			g_Memory.Game.NextSpawnTimer += 60.0 / SPAWN_PER_MINUTES
@@ -124,7 +124,7 @@ OnImGui :: proc(deltaTime: f32) {
 
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("改顏色", {400, 300})) {
-		g_Memory.EngineMemory.RendererClearColor = {
+		g_Memory.EngineMemory.ClearColor = {
 			u8(rand.int_max(255)),
 			u8(rand.int_max(255)),
 			u8(rand.int_max(255)),
