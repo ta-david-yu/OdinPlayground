@@ -4,6 +4,7 @@ import hm "core:container/handle_map"
 import "core:fmt"
 import "core:math/linalg"
 import "core:math/rand"
+import "core:mem"
 import "core:strconv"
 import "core:strings"
 import "core:unicode/utf8"
@@ -15,6 +16,13 @@ import dygui "../dye/gui"
 import prof "../dye/prof"
 
 SPAWN_PER_MINUTES :: 512
+
+
+vertices: [3]dye.Vertex = {
+	{{0, 0.5, 0.0}, {1, 0, 0, 1}},
+	{{-0.5, -0.5, 0.0}, {1, 1, 0, 1}},
+	{{0.5, -0.5, 0.0}, {1, 0, 1, 1}},
+}
 
 EntityHandle :: distinct hm.Handle64
 Entity :: struct {
@@ -29,6 +37,8 @@ GameMemory :: struct {
 	ButtonString:    [dynamic]rune,
 	Entities:        hm.Dynamic_Handle_Map(Entity, EntityHandle),
 	NextSpawnTimer:  f32,
+	VertexBuffer:    ^sdl3.GPUBuffer,
+	TransferBuffer:  ^sdl3.GPUTransferBuffer,
 }
 
 OnAfterInitEngineSystems :: proc() {
@@ -70,9 +80,69 @@ OnAfterInitEngineSystems :: proc() {
 	style.Colors.Button.OuterBorderHovered = {0, 0, 0, 255}
 	style.Colors.Button.OuterBorderActive = {0, 0, 0, 255}
 
-	// Spawn 100 entities on init
-	for i in 0 ..< 5 {
-		spawnEntityWithRandomWord()
+	// Create vertex buffer on gpu
+	vertexBufferInfo: sdl3.GPUBufferCreateInfo = {
+		size  = size_of(vertices),
+		usage = {.VERTEX},
+	}
+	g_Memory.Game.VertexBuffer = sdl3.CreateGPUBuffer(
+		g_Memory.EngineMemory.GPUDevice,
+		vertexBufferInfo,
+	)
+
+	// Create transfer buffer to upload data to the vertex buffer
+	transferInfo: sdl3.GPUTransferBufferCreateInfo = {
+		size  = size_of(vertices),
+		usage = .UPLOAD,
+	}
+	g_Memory.Game.TransferBuffer = sdl3.CreateGPUTransferBuffer(
+		g_Memory.EngineMemory.GPUDevice,
+		transferInfo,
+	)
+
+	// Fill the transfer buffer with data
+
+	// Map the transfer buffer to a pointer
+	data := transmute([^]dye.Vertex)sdl3.MapGPUTransferBuffer(
+		g_Memory.EngineMemory.GPUDevice,
+		g_Memory.Game.TransferBuffer,
+		false,
+	)
+	// Fill the pointer location with vertices data
+	mem.copy(data, raw_data(vertices[:]), size_of(vertices))
+
+	// Unmap the transfer buffer from the pointer
+	sdl3.UnmapGPUTransferBuffer(g_Memory.EngineMemory.GPUDevice, g_Memory.Game.TransferBuffer)
+
+	// Copy pass that copies the transfer buffer data to the vertex buffer
+	{
+		commandBuffer: ^sdl3.GPUCommandBuffer = sdl3.AcquireGPUCommandBuffer(
+			g_Memory.EngineMemory.GPUDevice,
+		)
+
+		if commandBuffer == nil {
+			sdl3.Log("Failed to acquire command buffer: %s", sdl3.GetError())
+		}
+
+		copyPass := sdl3.BeginGPUCopyPass(commandBuffer)
+		transferBufferLocation: sdl3.GPUTransferBufferLocation = {
+			transfer_buffer = g_Memory.Game.TransferBuffer,
+			offset          = 0,
+		}
+
+		vertexBufferRegion: sdl3.GPUBufferRegion = {
+			buffer = g_Memory.Game.VertexBuffer,
+			size   = size_of(vertices),
+			offset = 0,
+		}
+
+		// Execute the upload
+		sdl3.UploadToGPUBuffer(copyPass, transferBufferLocation, vertexBufferRegion, false)
+
+		sdl3.EndGPUCopyPass(copyPass)
+		if !sdl3.SubmitGPUCommandBuffer(commandBuffer) {
+			sdl3.Log("Failed to submit gpu command buffer: %s", sdl3.GetError())
+		}
 	}
 }
 
@@ -175,19 +245,55 @@ OnImGui :: proc(deltaTime: f32) {
 }
 
 OnRender :: proc(deltaTime: f32) {
+	commandBuffer: ^sdl3.GPUCommandBuffer = sdl3.AcquireGPUCommandBuffer(
+		g_Memory.EngineMemory.GPUDevice,
+	)
 
-	sdl3.SetRenderDrawColor(g_Memory.EngineMemory.MainRenderer, 255, 0, 0, 255)
+	if commandBuffer == nil {
+		sdl3.Log("Failed to acquire command buffer: %s", sdl3.GetError())
+	}
 
-	rect := sdl3.FRect{}
-	rect.x, rect.y = 0, 0
-	rect.w, rect.h = 50, 50
-	for i in 0 ..< 100 {
-		sdl3.RenderFillRect(g_Memory.EngineMemory.MainRenderer, &rect)
+	// Start the render pass that draws on the window color target
+	{
+		windowSwapChainTexture: ^sdl3.GPUTexture
+		if !sdl3.WaitAndAcquireGPUSwapchainTexture(
+			commandBuffer,
+			g_Memory.EngineMemory.MainWindow,
+			&windowSwapChainTexture,
+			nil,
+			nil,
+		) {
+			sdl3.Log("Failed to acquire GPU swapchain texture: %s", sdl3.GetError())
+		}
+
+		clearFColor := cast(sdl3.FColor)(cast([4]f32)g_Memory.EngineMemory.ClearColor / 255.0)
+		windoColorTargetInfo: sdl3.GPUColorTargetInfo = {
+			texture     = windowSwapChainTexture,
+			cycle       = true,
+			load_op     = sdl3.GPULoadOp.CLEAR,
+			store_op    = sdl3.GPUStoreOp.STORE,
+			clear_color = clearFColor,
+		}
+
+		renderPass: ^sdl3.GPURenderPass = sdl3.BeginGPURenderPass(
+			commandBuffer,
+			&windoColorTargetInfo,
+			1,
+			nil,
+		)
+
+		sdl3.EndGPURenderPass(renderPass)
+	}
+
+	if !sdl3.SubmitGPUCommandBuffer(commandBuffer) {
+		sdl3.Log("Failed to submit gpu command buffer: %s", sdl3.GetError())
 	}
 }
 
-FreeGameMemory :: proc(memory: ^GameMemory) {
-	delete(memory.TitleTextString)
-	delete(memory.ButtonString)
-	hm.dynamic_destroy(&memory.Entities)
+FreeGameRelatedMemory :: proc() {
+	sdl3.ReleaseGPUTransferBuffer(g_Memory.EngineMemory.GPUDevice, g_Memory.Game.TransferBuffer)
+	sdl3.ReleaseGPUBuffer(g_Memory.EngineMemory.GPUDevice, g_Memory.Game.VertexBuffer)
+	delete(g_Memory.Game.TitleTextString)
+	delete(g_Memory.Game.ButtonString)
+	hm.dynamic_destroy(&g_Memory.Game.Entities)
 }

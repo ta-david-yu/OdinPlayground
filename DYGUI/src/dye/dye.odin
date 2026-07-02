@@ -181,55 +181,7 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 
 		// Render
 		{
-			commandBuffer: ^sdl3.GPUCommandBuffer = sdl3.AcquireGPUCommandBuffer(
-				engineMemory.GPUDevice,
-			)
-
-			if commandBuffer == nil {
-				sdl3.Log("Failed to acquire command buffer: %s", sdl3.GetError())
-			}
-
-			windowSwapChainTexture: ^sdl3.GPUTexture
-			if !sdl3.WaitAndAcquireGPUSwapchainTexture(
-				commandBuffer,
-				engineMemory.MainWindow,
-				&windowSwapChainTexture,
-				nil,
-				nil,
-			) {
-				sdl3.Log("Failed to acquire GPU swapchain texture: %s", sdl3.GetError())
-			}
-
-			clearFColor := cast(sdl3.FColor)(cast([4]f32)engineMemory.ClearColor / 255.0)
-			windoColorTargetInfo: sdl3.GPUColorTargetInfo = {
-				texture     = windowSwapChainTexture,
-				cycle       = true,
-				load_op     = sdl3.GPULoadOp.CLEAR,
-				store_op    = sdl3.GPUStoreOp.STORE,
-				clear_color = clearFColor,
-			}
-
-			// Start the render pass that draws on the window color target
-			{
-				renderPass: ^sdl3.GPURenderPass = sdl3.BeginGPURenderPass(
-					commandBuffer,
-					&windoColorTargetInfo,
-					1,
-					nil,
-				)
-
-				/*
-				// Event: OnRender
-				eventFunctions.OnRender(deltaTimeInSeconds)
-				renderImGuiCommands(engineMemory)
-				*/
-
-				sdl3.EndGPURenderPass(renderPass)
-			}
-
-			if !sdl3.SubmitGPUCommandBuffer(commandBuffer) {
-				sdl3.Log("Failed to submit gpu command buffer: %s", sdl3.GetError())
-			}
+			eventFunctions.OnRender(deltaTimeInSeconds)
 		}
 	}
 

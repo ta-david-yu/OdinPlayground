@@ -59,7 +59,7 @@ App_HotReload :: proc(appMemory: ^AppMemory) {
 @(export)
 App_Shutdown :: proc() {
 	fmt.println("Shutdown")
-	FreeGameMemory(&g_Memory.Game)
+	FreeGameRelatedMemory()
 	dye.FreeEngine(g_Memory.EngineMemory)
 	free(g_Memory)
 }
