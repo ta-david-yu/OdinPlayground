@@ -1,7 +1,6 @@
 package asset_copy
 
 import "base:runtime"
-import "core:c/libc"
 import "core:fmt"
 import "core:hash"
 import "core:os"
@@ -155,9 +154,10 @@ CopyAssetFromSrcToDst :: proc(
 }
 
 CheckIfAssetPathIsShaderAndCompile :: proc(dstAssetPath: string) {
-	isShader :=
-		strings.has_suffix(dstAssetPath, ".vert") || strings.has_suffix(dstAssetPath, ".frag")
-	if (isShader) {
+	isVertexShader := strings.has_suffix(dstAssetPath, ".vert.hlsl")
+	isFragmentShader := strings.has_suffix(dstAssetPath, ".frag.hlsl")
+
+	if (isVertexShader || isFragmentShader) {
 		// Also compile shader files if possible.
 		extension := os.ext(dstAssetPath)
 		dstAssetPathWithoutExt := dstAssetPath[:len(dstAssetPath) - len(extension)]
@@ -167,11 +167,77 @@ CheckIfAssetPathIsShaderAndCompile :: proc(dstAssetPath: string) {
 			return
 		}
 
-		compileCmd := fmt.ctprintf("glslc %s -o %s", dstAssetPath, outputPath)
-		if libc.system(compileCmd) != 0 {
-			fmt.println("[asset-copy] Failed to compile shader: ", dstAssetPath, " > ", outputPath)
-		} else {
-			fmt.println("[asset-copy] Compiled shader: ", dstAssetPath, " > ", outputPath)
+		jsonOutputPath: string
+		jsonOutputPath, err = os.join_filename(outputPath, "json", context.temp_allocator)
+		if (err != nil) {
+			return
 		}
+
+		stage := "vertex"
+		if (isFragmentShader) {
+			stage = "fragment"
+		}
+
+		SHADERCROSS_PATH :: "shadercross\\bin\\shadercross.exe"
+		compileCommand := [?]string {
+			SHADERCROSS_PATH,
+			dstAssetPath,
+			"-s",
+			"HLSL",
+			"-d",
+			"SPIRV",
+			"-t",
+			stage,
+			"-e",
+			"main",
+			"-o",
+			outputPath,
+		}
+
+		compileActionName := strings.concatenate(
+			{"compilation from ", dstAssetPath, " to ", outputPath},
+			context.temp_allocator,
+		)
+		ExecProcessCommand(compileCommand[:], compileActionName)
+
+		// Also generate shader reflect json, so we get some metadata info from the shader which can be used for shader asset loading process.
+		reflectCommand := [?]string {
+			SHADERCROSS_PATH,
+			dstAssetPath,
+			"-s",
+			"HLSL",
+			"-d",
+			"JSON",
+			"-t",
+			stage,
+			"-e",
+			"main",
+			"-o",
+			jsonOutputPath,
+		}
+
+		generateShaderInfoActionName := strings.concatenate(
+			{"shader info generation of ", dstAssetPath, " to ", jsonOutputPath},
+			context.temp_allocator,
+		)
+		ExecProcessCommand(reflectCommand[:], generateShaderInfoActionName)
+	}
+}
+
+ExecProcessCommand :: proc(command: []string, actionName: string) {
+	processState, stdout, stderr, execErr := os.process_exec(
+		os.Process_Desc{command = command},
+		context.temp_allocator,
+	)
+	if execErr != nil || processState.exit_code != 0 {
+		fmt.println("[asset-copy] Failed to", actionName)
+		if len(stdout) > 0 {
+			fmt.println(string(stdout))
+		}
+		if len(stderr) > 0 {
+			fmt.println(string(stderr))
+		}
+	} else {
+		fmt.println("[asset-copy] Completed", actionName)
 	}
 }
