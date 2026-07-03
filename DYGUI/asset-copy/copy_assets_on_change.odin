@@ -23,6 +23,11 @@ main :: proc() {
 
 	srcFolder := os.args[1]
 	dstFolder := os.args[2]
+	srcFolderRoot, srcFolderRootErr := os.get_absolute_path(srcFolder, context.allocator)
+	if srcFolderRootErr != nil {
+		fmt.eprintfln("[asset-copy] Failed resolving source folder %s: %v", srcFolder, srcFolderRootErr)
+		return
+	}
 
 	fmt.printfln("src: {0}", srcFolder)
 	fmt.printfln("dst: {0}", dstFolder)
@@ -52,7 +57,7 @@ main :: proc() {
 		}
 		watchFileTimer = 0
 
-		fileWalker := os.walker_create(srcFolder)
+		fileWalker := os.walker_create(srcFolderRoot)
 		defer os.walker_destroy(&fileWalker)
 
 		isAnyAssetUpdateThisLoop := false
@@ -69,7 +74,7 @@ main :: proc() {
 				// This is a new asset that hasn't been tracked yet.
 				// Copy the asset and then push it into the map.
 				dstAssetPath := CopyAssetFromSrcToDst(
-					srcFolder,
+					srcFolderRoot,
 					dstFolder,
 					info.fullpath,
 				) or_continue
@@ -86,7 +91,7 @@ main :: proc() {
 			isAssetDirty := assetInfo.Timestamp != timestamp
 			if (isAssetDirty) {
 				dstAssetPath := CopyAssetFromSrcToDst(
-					srcFolder,
+					srcFolderRoot,
 					dstFolder,
 					info.fullpath,
 				) or_continue
