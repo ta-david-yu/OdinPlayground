@@ -92,7 +92,8 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 		return false
 	}
 
-	Assets_CreateAssetDatabase()
+	format := sdl3.GetGPUSwapchainTextureFormat(engineMemory.GPUDevice, engineMemory.MainWindow)
+	Assets_CreateAssetDatabase(engineMemory.GPUDevice, format)
 
 	engineMemory.GUIContext = dygui.CreateContext()
 	engineMemory.GUIContext.Canvas = {
@@ -235,7 +236,7 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 				sdl3.RenderFillRect(renderer, &rect)
 			}
 		case dygui.TextDrawData:
-			fontAsset := Assets_GetFont(cast(AssetPathHash)drawData.FontConfig.FontId) or_break
+			fontAsset := Assets_GetFont(cast(AssetID)drawData.FontConfig.FontId) or_break
 			font := fontAsset.Font
 			currentFontSize := ttf.GetFontSize(font)
 			targetMeasureFontSize := cast(f32)drawData.FontConfig.FontSize
@@ -325,7 +326,7 @@ measureText :: proc(
 	fontConfig: dygui.FontConfig,
 	userData: rawptr,
 ) -> dygui.Dimensions {
-	fontAsset, err := Assets_GetFont(cast(AssetPathHash)fontConfig.FontId)
+	fontAsset, err := Assets_GetFont(cast(AssetID)fontConfig.FontId)
 	if (err != nil) {
 		return {0, 0}
 	}

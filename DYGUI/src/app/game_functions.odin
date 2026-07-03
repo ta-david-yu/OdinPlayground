@@ -145,6 +145,13 @@ OnAfterInitEngineSystems :: proc() {
 			sdl3.Log("Failed to submit gpu command buffer: %s", sdl3.GetError())
 		}
 	}
+
+	asset, err := dye.Assets_GetOrLoadGraphicsPipeline(
+		"assets/shaders/vertex.vert.spv",
+		"assets/shaders/fragment.frag.spv",
+	)
+
+	dye.Assets_UnloadGraphicsPipeline(asset.ID)
 }
 
 OnUpdate :: proc(deltaTime: f32) {
