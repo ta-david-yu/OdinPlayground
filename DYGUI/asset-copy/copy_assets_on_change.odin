@@ -1,6 +1,7 @@
 package asset_copy
 
 import "base:runtime"
+import "core:c/libc"
 import "core:fmt"
 import "core:hash"
 import "core:os"
@@ -41,7 +42,7 @@ main :: proc() {
 		lastLoopTick = loopTick
 
 		if (windows.GetAsyncKeyState(windows.VK_F5) & 1) != 0 {
-			fmt.println("Force refresh and copy all assets")
+			fmt.println("[asset-copy] Force refresh and copy all assets")
 			clear(&assetInfos)
 			watchFileTimer = watchFileThreshold
 		}
@@ -68,11 +69,14 @@ main :: proc() {
 			if (!wasTracked) {
 				// This is a new asset that hasn't been tracked yet.
 				// Copy the asset and then push it into the map.
-				if (!CopyAssetFromSrcToDst(srcFolder, dstFolder, info.fullpath)) {
-					continue
-				}
+				dstAssetPath := CopyAssetFromSrcToDst(
+					srcFolder,
+					dstFolder,
+					info.fullpath,
+				) or_continue
 
-				fmt.eprintfln("[asset-copy] Copy new file: %s", info.fullpath)
+				fmt.eprintfln("[asset-copy] Copied new file: %s", info.fullpath)
+				CheckIfAssetPathIsShaderAndCompile(dstAssetPath)
 
 				assetInfos[hash] = AssetInfo {
 					Timestamp = timestamp,
@@ -82,11 +86,15 @@ main :: proc() {
 
 			isAssetDirty := assetInfo.Timestamp != timestamp
 			if (isAssetDirty) {
-				if (!CopyAssetFromSrcToDst(srcFolder, dstFolder, info.fullpath)) {
-					continue
-				}
+				dstAssetPath := CopyAssetFromSrcToDst(
+					srcFolder,
+					dstFolder,
+					info.fullpath,
+				) or_continue
 
-				fmt.eprintfln("\n[asset-copy] Update and copy file: %s", info.fullpath)
+				fmt.eprintfln("\n[asset-copy] Updated file: %s", info.fullpath)
+				CheckIfAssetPathIsShaderAndCompile(dstAssetPath)
+
 				assetInfo^ = {
 					Timestamp = timestamp,
 				}
@@ -113,27 +121,57 @@ HashString :: proc(path: string) -> u32 {
 }
 
 
-CopyAssetFromSrcToDst :: proc(srcFolder: string, dstFolder: string, srcAssetPath: string) -> bool {
+CopyAssetFromSrcToDst :: proc(
+	srcFolder: string,
+	dstFolder: string,
+	srcAssetPath: string,
+) -> (
+	dstAssetPath: string,
+	result: bool,
+) {
 	assetRelativeFile := strings.trim_prefix(srcAssetPath, srcFolder)
 	assetRelativeFile = strings.trim_left(assetRelativeFile, os.Path_Separator_Chars)
 
-	assetDst, joinPathErr := os.join_path({dstFolder, assetRelativeFile}, context.temp_allocator)
+	dst, joinPathErr := os.join_path({dstFolder, assetRelativeFile}, context.temp_allocator)
 	if (joinPathErr != .None) {
-		return false
+		return dstAssetPath, false
 	}
 
-	assetDstDir := os.dir(assetDst)
+	dstAssetPath = dst
+	assetDstDir := os.dir(dstAssetPath)
 	err := os.make_directory_all(assetDstDir)
 	if (err != nil && err != .Exist) {
-		fmt.eprintfln("[asset-copy] failed creating dir %s: %v", assetDstDir, err)
-		return false
+		fmt.eprintfln("[asset-copy] Failed creating dir %s: %v", assetDstDir, err)
+		return dstAssetPath, false
 	}
 
-	err = os.copy_file(assetDst, srcAssetPath)
+	err = os.copy_file(dstAssetPath, srcAssetPath)
 	if err != nil {
-		fmt.eprintfln("[asset-copy] failed copying %s -> %s: %v", srcAssetPath, assetDst, err)
-		return false
+		fmt.eprintfln("[asset-copy] Failed copying %s -> %s: %v", srcAssetPath, dstAssetPath, err)
+		return dstAssetPath, false
 	}
 
-	return true
+	return dstAssetPath, true
+}
+
+CheckIfAssetPathIsShaderAndCompile :: proc(dstAssetPath: string) {
+	isShader :=
+		strings.has_suffix(dstAssetPath, ".vert") || strings.has_suffix(dstAssetPath, ".frag")
+	if (isShader) {
+		// Also compile shader files if possible.
+		extension := os.ext(dstAssetPath)
+		dstAssetPathWithoutExt := dstAssetPath[:len(dstAssetPath) - len(extension)]
+
+		outputPath, err := os.join_filename(dstAssetPathWithoutExt, "spv", context.temp_allocator)
+		if (err != nil) {
+			return
+		}
+
+		compileCmd := fmt.ctprintf("glslc %s -o %s", dstAssetPath, outputPath)
+		if libc.system(compileCmd) != 0 {
+			fmt.println("[asset-copy] Failed to compile shader: ", dstAssetPath, " > ", outputPath)
+		} else {
+			fmt.println("[asset-copy] Compiled shader: ", dstAssetPath, " > ", outputPath)
+		}
+	}
 }

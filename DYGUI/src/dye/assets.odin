@@ -12,26 +12,30 @@ g_AssetDatabase: ^AssetDatabase = nil
 AssetPathHash :: distinct u32
 
 AssetDatabase :: struct {
-	Allocator: runtime.Allocator,
-	Fonts:     map[AssetPathHash]FontAsset,
+	Allocator:         runtime.Allocator,
+	Fonts:             map[AssetPathHash]FontAsset,
+	GraphicsPipelines: map[AssetPathHash]GraphicsPipelineAsset,
 }
 
 AssetDescriptor :: struct {
-	ID:   AssetPathHash,
-	Path: string,
+	ID:    AssetPathHash,
+	// A list of file paths that are associated with this asset.
+	// Normally an asset will only have one associated path but some have more (e.g., graphics pipeline)
+	Paths: [dynamic; 4]string,
 }
 
 FontAsset :: struct {
 	using Descriptor: AssetDescriptor,
 	Font:             ^ttf.Font,
+	// The StreamIO to memory region that holds the font asset bytes.
 	AssetIO:          ^sdl3.IOStream,
+	// The font asset loaded into memory. We do this so ttf.OpenFont doesn't lock up the file, which prevent asset copying.
 	AssetBytes:       []byte,
 }
 
-ShaderAsset :: struct {}
-
-Assets_GetOrLoadShader :: proc() {
-
+GraphicsPipelineAsset :: struct {
+	using Descriptor: AssetDescriptor,
+	Pipeline:         ^sdl3.GPUGraphicsPipeline,
 }
 
 Assets_GetGlobalAssetDatabase :: proc() -> ^AssetDatabase {
@@ -145,7 +149,7 @@ Assets_GetOrLoadFont :: proc(
 		delete(fontBytes, g_AssetDatabase.Allocator)
 		return fontAsset, pathCloneErr
 	}
-	fontAsset.Path = pathClone
+	append(&fontAsset.Paths, pathClone)
 	fontAsset.Font = font
 	fontAsset.AssetIO = fontIO
 	fontAsset.AssetBytes = fontBytes
@@ -193,10 +197,47 @@ Assets_UnloadFontFromAssetDatabase :: proc(
 		return
 	}
 
-	delete(asset.Path, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
+	for path in asset.Paths {
+		delete(path, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
+	}
 	ttf.CloseFont(asset.Font)
 	sdl3.CloseIO(asset.AssetIO)
 	delete(asset.AssetBytes, g_AssetDatabase.Allocator)
+}
+
+Assets_GetOrLoadGraphicsPipeline :: proc(
+	vertexPath: string,
+	fragmentPath: string,
+) -> (
+	pipelineAsset: GraphicsPipelineAsset,
+	err: LoadAssetError,
+) {
+	if (g_AssetDatabase == nil) {
+		return pipelineAsset, NoGlobalAssetDatabaseError{}
+	}
+
+	concatedPathForHashing := strings.concatenate(
+		{vertexPath, fragmentPath},
+		context.temp_allocator,
+	) or_return
+	hash := Assets_HashString(concatedPathForHashing)
+
+	asset, isLoaded := g_AssetDatabase.GraphicsPipelines[hash]
+	if (isLoaded) {
+		return asset, nil
+	}
+
+	// The asset hasn't been loaded yet.
+
+	// Load vertex shader
+	vertexCode := os.read_entire_file(vertexPath, context.temp_allocator) or_return
+
+	vertexInfo: sdl3.GPUShaderCreateInfo = {
+		code = nil,
+	}
+
+	// TODO
+	return asset, nil
 }
 
 Assets_HashString :: proc(path: string) -> AssetPathHash {

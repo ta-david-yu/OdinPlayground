@@ -65,12 +65,7 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 		return false
 	}
 
-	shaderFormats: sdl3.GPUShaderFormat = {
-		sdl3.GPUShaderFormatFlag.SPIRV,
-		sdl3.GPUShaderFormatFlag.DXBC,
-		sdl3.GPUShaderFormatFlag.DXIL,
-		sdl3.GPUShaderFormatFlag.MSL,
-	}
+	shaderFormats: sdl3.GPUShaderFormat = {sdl3.GPUShaderFormatFlag.SPIRV}
 	engineMemory.GPUDevice = sdl3.CreateGPUDevice(shaderFormats, false, nil)
 	if engineMemory.GPUDevice == nil {
 		sdl3.Log("Could not create GPU device: %s", sdl3.GetError())
