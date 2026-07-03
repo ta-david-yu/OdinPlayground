@@ -241,7 +241,7 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 			}
 		case dygui.TextDrawData:
 			fontAsset := Assets_GetFont(cast(AssetPathHash)drawData.FontConfig.FontId) or_break
-			font := fontAsset.Data
+			font := fontAsset.Font
 			currentFontSize := ttf.GetFontSize(font)
 			targetMeasureFontSize := cast(f32)drawData.FontConfig.FontSize
 			needToChangeFontSize: bool = currentFontSize != targetMeasureFontSize
@@ -335,7 +335,7 @@ measureText :: proc(
 		return {0, 0}
 	}
 
-	font := fontAsset.Data
+	font := fontAsset.Font
 	currentFontSize := ttf.GetFontSize(font)
 	targetMeasureFontSize := cast(f32)fontConfig.FontSize
 

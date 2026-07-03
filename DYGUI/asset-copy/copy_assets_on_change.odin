@@ -1,11 +1,12 @@
 package asset_copy
 
 import "base:runtime"
-import "core:c/libc"
 import "core:fmt"
 import "core:hash"
 import "core:os"
 import "core:strings"
+import "core:sys/windows"
+import "core:thread"
 import "core:time"
 
 AssetInfo :: struct {
@@ -28,9 +29,29 @@ main :: proc() {
 
 	assetInfos: map[u32]AssetInfo = make(map[u32]AssetInfo)
 
+	watchFileThreshold := 300 * time.Millisecond
+	watchFileTimer: time.Duration = watchFileThreshold
+	lastLoopTick := time.tick_now()
+
 	animationFrames := []string{"Idle", "Idle.", "Idle..", "Idle..."}
 	animationFrameCounter := 0
 	for {
+		loopTick := time.tick_now()
+		watchFileTimer += time.tick_diff(lastLoopTick, loopTick)
+		lastLoopTick = loopTick
+
+		if (windows.GetAsyncKeyState(windows.VK_F5) & 1) != 0 {
+			fmt.println("Force refresh and copy all assets")
+			clear(&assetInfos)
+			watchFileTimer = watchFileThreshold
+		}
+
+		if watchFileTimer < watchFileThreshold {
+			thread.yield()
+			continue
+		}
+		watchFileTimer = 0
+
 		fileWalker := os.walker_create(srcFolder)
 		defer os.walker_destroy(&fileWalker)
 
@@ -82,8 +103,6 @@ main :: proc() {
 		}
 
 		free_all(context.temp_allocator)
-
-		time.sleep(300 * time.Millisecond)
 	}
 
 	delete(assetInfos)

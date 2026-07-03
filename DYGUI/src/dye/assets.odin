@@ -2,6 +2,7 @@ package dye
 
 import "base:runtime"
 import "core:hash"
+import "core:os"
 import "core:strings"
 import "vendor:sdl3"
 import "vendor:sdl3/ttf"
@@ -22,7 +23,9 @@ AssetDescriptor :: struct {
 
 FontAsset :: struct {
 	using Descriptor: AssetDescriptor,
-	Data:             ^ttf.Font,
+	Font:             ^ttf.Font,
+	AssetIO:          ^sdl3.IOStream,
+	AssetBytes:       []byte,
 }
 
 ShaderAsset :: struct {}
@@ -86,6 +89,7 @@ LoadAssetError :: union {
 	NoGlobalAssetDatabaseError,
 	TTFNotInitError,
 	TTFOpenFontError,
+	os.Error,
 	runtime.Allocator_Error,
 }
 
@@ -119,16 +123,32 @@ Assets_GetOrLoadFont :: proc(
 	}
 
 	// The asset hasn't been loaded yet.
-	pathInCStr := strings.clone_to_cstring(path, context.temp_allocator) or_return
+	fontBytes := os.read_entire_file(path, g_AssetDatabase.Allocator) or_return
+	fontIO := sdl3.IOFromConstMem(raw_data(fontBytes), uint(len(fontBytes)))
+	if (fontIO == nil) {
+		delete(fontBytes, g_AssetDatabase.Allocator)
+		return fontAsset, TTFOpenFontError{ErrorMessage = sdl3.GetError()}
+	}
 
-	font := ttf.OpenFont(pathInCStr, defaultSize)
+	font := ttf.OpenFontIO(fontIO, false, defaultSize)
 	if (font == nil) {
+		sdl3.CloseIO(fontIO)
+		delete(fontBytes, g_AssetDatabase.Allocator)
 		return fontAsset, TTFOpenFontError{ErrorMessage = sdl3.GetError()}
 	}
 
 	fontAsset.ID = hash
-	fontAsset.Path = strings.clone(path, g_AssetDatabase.Allocator) or_return // Clone the string in case the user delete the path string.
-	fontAsset.Data = font
+	pathClone, pathCloneErr := strings.clone(path, g_AssetDatabase.Allocator) // Clone the string in case the user delete the path string.
+	if (pathCloneErr != nil) {
+		ttf.CloseFont(font)
+		sdl3.CloseIO(fontIO)
+		delete(fontBytes, g_AssetDatabase.Allocator)
+		return fontAsset, pathCloneErr
+	}
+	fontAsset.Path = pathClone
+	fontAsset.Font = font
+	fontAsset.AssetIO = fontIO
+	fontAsset.AssetBytes = fontBytes
 	g_AssetDatabase.Fonts[hash] = fontAsset
 	return fontAsset, nil
 }
@@ -174,7 +194,9 @@ Assets_UnloadFontFromAssetDatabase :: proc(
 	}
 
 	delete(asset.Path, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
-	ttf.CloseFont(asset.Data)
+	ttf.CloseFont(asset.Font)
+	sdl3.CloseIO(asset.AssetIO)
+	delete(asset.AssetBytes, g_AssetDatabase.Allocator)
 }
 
 Assets_HashString :: proc(path: string) -> AssetPathHash {
