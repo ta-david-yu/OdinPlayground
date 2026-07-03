@@ -12,7 +12,8 @@ if "%~1"=="" (
     )
 )
 
-set "OUT=build\builder.exe"
+if not exist "build\tools" mkdir "build\tools"
+set "OUT=build\tools\builder.exe"
 
 :: Build
 odin build dll-builder\builder.odin -file -out:%OUT%

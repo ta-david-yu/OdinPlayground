@@ -3,7 +3,7 @@ setlocal
 
 :: Check if an argument was provided for subfolder
 if "%~1"=="" (
-    set "OUTDIR=build"
+    set "OUTDIR=build\release"
     set "DEBUGFLAG="
 ) else (
     set "OUTDIR=build\%~1"
@@ -28,8 +28,8 @@ copy "extern\SDL3.dll" "%OUTDIR%\" /Y >nul
 copy "extern\SDL3_ttf.dll" "%OUTDIR%\" /Y >nul
 
 :: Build Asset Copy Watcher
-
-set "ASSET_COPY_OUT=build\copy-asset.exe"
+if not exist "build\tools" mkdir "build\tools"
+set "ASSET_COPY_OUT=build\tools\copy-asset.exe"
 odin build asset-copy\copy_assets_on_change.odin -file -out:%ASSET_COPY_OUT%
 
 :: Start the asset copier without blocking; /D preserves this call site's working folder.

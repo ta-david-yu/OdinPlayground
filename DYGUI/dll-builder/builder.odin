@@ -97,8 +97,14 @@ main :: proc() {
 }
 
 executeProcToBuildDLL :: proc(isDebug: bool) {
+	if (isDebug) {
+		os.make_directory_all("build/debug")
+	} else {
+		os.make_directory_all("build/release")
+	}
+
 	buildCmd :=
-		!isDebug ? fmt.ctprintf("odin build src\\app -build-mode:dll -out:\"build\\app.dll\"") : fmt.ctprintf("odin build src\\app -debug -build-mode:dll -out:\"build\\debug\\app.dll\"")
+		!isDebug ? fmt.ctprintf("odin build src\\app -build-mode:dll -out:\"build\\release\\app.dll\"") : fmt.ctprintf("odin build src\\app -debug -build-mode:dll -out:\"build\\debug\\app.dll\"")
 	if libc.system(buildCmd) != 0 {
 		fmt.println("Failed to build dll")
 	} else {
