@@ -4,7 +4,7 @@ import "core:hash"
 
 NUMBER_OF_MOUSE_BUTTONS :: 5
 
-DYID :: distinct u32
+ID :: distinct u32
 
 Dimensions :: distinct [2]f32
 
@@ -78,7 +78,7 @@ addCommandToFrame :: proc(drawData: DrawData, frame: ^DrawFrame) {
 }
 
 FontConfig :: struct {
-	FontId:   u16,
+	FontId:   ID,
 	FontSize: u16,
 }
 
@@ -120,11 +120,11 @@ Style :: struct {
 State :: struct {
 	InputState:              InputState,
 	Frame:                   DrawFrame,
-	ActiveId:                DYID,
+	ActiveId:                ID,
 	IsActiveIdJustActivated: bool,
-	ActiveIdIsAlive:         DYID,
-	ActiveIdPreviousFrame:   DYID,
-	HoveredId:               DYID,
+	ActiveIdIsAlive:         ID,
+	ActiveIdPreviousFrame:   ID,
+	HoveredId:               ID,
 	LastItemData:            LastItemData,
 }
 
@@ -161,7 +161,7 @@ InputState :: struct {
 }
 
 LastItemData :: struct {
-	Id:   DYID,
+	Id:   ID,
 	Rect: Rect,
 }
 
@@ -205,8 +205,8 @@ isMouseButtonDown :: proc(mouseButton: u8) -> bool {
 }
 
 @(private)
-getID :: proc(label: string) -> DYID {
-	return cast(DYID)hash.crc32(transmute([]byte)label)
+getID :: proc(label: string) -> ID {
+	return cast(ID)hash.crc32(transmute([]byte)label)
 }
 
 CreateContext :: proc() -> ^GUIContext {
@@ -282,7 +282,7 @@ isPointInRect :: proc(point: [2]f32, rect: Rect) -> bool {
 }
 
 @(private)
-setActiveId :: proc(id: DYID) {
+setActiveId :: proc(id: ID) {
 	state := GetState()
 	if (state.ActiveId != 0) {
 		// TODO: Clear previously active widget state
@@ -305,13 +305,13 @@ clearActiveId :: proc() {
 }
 
 @(private)
-setHoveredId :: proc(id: DYID) {
+setHoveredId :: proc(id: ID) {
 	state := GetState()
 	state.HoveredId = id
 }
 
 @(private)
-addItem :: proc(rect: Rect, id: DYID) {
+addItem :: proc(rect: Rect, id: ID) {
 	// Setup UI global state
 	state := GetState()
 	if (state.ActiveId == id) {
@@ -362,7 +362,7 @@ GetLastItemRect :: proc() -> Rect {
 }
 
 Button :: proc(label: string, position: [2]f32) -> bool {
-	id: DYID = getID(label)
+	id: ID = getID(label)
 
 	style := GetStyle()
 	state := GetState()
@@ -583,7 +583,7 @@ Button :: proc(label: string, position: [2]f32) -> bool {
 }
 
 Text :: proc(label: string, position: [2]f32) {
-	id: DYID = getID(label)
+	id: ID = getID(label)
 
 	style := GetStyle()
 	state := GetState()

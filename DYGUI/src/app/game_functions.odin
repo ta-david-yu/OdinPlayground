@@ -13,7 +13,6 @@ import "vendor:sdl3"
 
 import dye "../dye"
 import dygui "../dye/gui"
-import prof "../dye/prof"
 
 SPAWN_PER_MINUTES :: 512
 
@@ -37,6 +36,8 @@ GameMemory :: struct {
 	ButtonString:    [dynamic]rune,
 	Entities:        hm.Dynamic_Handle_Map(Entity, EntityHandle),
 	NextSpawnTimer:  f32,
+	ChineseFont:     dye.AssetDescriptor,
+	EnglishFont:     dye.AssetDescriptor,
 	VertexBuffer:    ^sdl3.GPUBuffer,
 	TransferBuffer:  ^sdl3.GPUTransferBuffer,
 }
@@ -44,10 +45,10 @@ GameMemory :: struct {
 OnAfterInitEngineSystems :: proc() {
 	g_Memory.EngineMemory.ClearColor = {180, 180, 180, 255}
 
-	dye.LoadFont(g_Memory.EngineMemory, "assets/fonts/m6x11plus.ttf", 36)
-	dye.LoadFont(g_Memory.EngineMemory, "assets/fonts/Cubic_11.ttf", 33)
+	g_Memory.Game.EnglishFont, _ = dye.Assets_GetOrLoadFont("assets/fonts/m6x11plus.ttf", 36)
+	g_Memory.Game.ChineseFont, _ = dye.Assets_GetOrLoadFont("assets/fonts/Cubic_11.ttf", 33)
 
-	dygui.SetMainFontConfig({FontId = 0, FontSize = 18})
+	dygui.SetMainFontConfig({FontId = cast(dygui.ID)g_Memory.Game.EnglishFont.ID, FontSize = 18})
 
 	style := dygui.GetStyle()
 	style.Colors.Text = {0, 0, 0, 255}
@@ -190,7 +191,7 @@ OnImGui :: proc(deltaTime: f32) {
 	style := dygui.GetStyle()
 	style.Variables.Button.InnerBorderThickness = 2
 
-	dygui.PushFontConfig({FontId = 1, FontSize = 22}) // Font Id 1 is for chinese.
+	dygui.PushFontConfig({FontId = cast(dygui.ID)g_Memory.Game.ChineseFont.ID, FontSize = 22}) // Set font Id for chinese.
 
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("改顏色", {400, 300})) {

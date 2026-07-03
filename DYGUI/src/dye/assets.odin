@@ -1,0 +1,176 @@
+package dye
+
+import "base:runtime"
+import "core:hash"
+import "core:strings"
+import "vendor:sdl3"
+import "vendor:sdl3/ttf"
+
+g_AssetDatabase: ^AssetDatabase = nil
+
+AssetPathHash :: distinct u32
+
+AssetDatabase :: struct {
+	Allocator: runtime.Allocator,
+	Fonts:     map[AssetPathHash]FontAsset,
+}
+
+AssetDescriptor :: struct {
+	ID:   AssetPathHash,
+	Path: string,
+}
+
+FontAsset :: struct {
+	using Descriptor: AssetDescriptor,
+	Data:             ^ttf.Font,
+}
+
+Assets_GetGlobalAssetDatabase :: proc() -> ^AssetDatabase {
+	return g_AssetDatabase
+}
+
+Assets_SetGlobalAssetDatabase :: proc(assetDatabase: ^AssetDatabase) {
+	g_AssetDatabase = assetDatabase
+}
+
+Assets_CreateAssetDatabase :: proc(
+	setAsGlobal: bool = true,
+	allocator: runtime.Allocator = context.allocator,
+) -> ^AssetDatabase {
+	assetDatabase := new(AssetDatabase, allocator)
+
+	assetDatabase.Allocator = allocator
+	assetDatabase.Fonts = make(map[AssetPathHash]FontAsset, allocator)
+
+	if (setAsGlobal) {
+		Assets_SetGlobalAssetDatabase(assetDatabase)
+	}
+
+	return assetDatabase
+}
+
+Assets_ReleaseAssetDatabase :: proc(assetDatabase: ^AssetDatabase = nil) {
+	assetDatabase := assetDatabase
+
+	if (assetDatabase == nil) {
+		assetDatabase = g_AssetDatabase
+	}
+
+	assert(assetDatabase != nil)
+
+	allocator := assetDatabase.Allocator
+
+	for key, value in assetDatabase.Fonts {
+		Assets_UnloadFont(assetDatabase, value.ID)
+	}
+	delete(assetDatabase.Fonts)
+
+	free(assetDatabase, allocator)
+}
+
+NoGlobalAssetDatabaseError :: struct {}
+
+TTFNotInitError :: struct {}
+
+TTFOpenFontError :: struct {
+	ErrorMessage: cstring,
+}
+
+LoadAssetError :: union {
+	NoGlobalAssetDatabaseError,
+	TTFNotInitError,
+	TTFOpenFontError,
+	runtime.Allocator_Error,
+}
+
+NotLoadedError :: struct {}
+
+GetAssetError :: union {
+	NoGlobalAssetDatabaseError,
+	NotLoadedError,
+}
+
+Assets_GetOrLoadFont :: proc(
+	path: string,
+	defaultSize: f32 = 16,
+) -> (
+	fontAsset: FontAsset,
+	err: LoadAssetError,
+) {
+	if (g_AssetDatabase == nil) {
+		return fontAsset, NoGlobalAssetDatabaseError{}
+	}
+
+	if (ttf.WasInit() == 0) {
+		return fontAsset, TTFNotInitError{}
+	}
+
+	hash := Assets_HashString(path)
+
+	asset, isLoaded := g_AssetDatabase.Fonts[hash]
+	if (isLoaded) {
+		return asset, nil
+	}
+
+	// The asset hasn't been loaded yet.
+	pathInCStr := strings.clone_to_cstring(path, context.temp_allocator) or_return
+
+	font := ttf.OpenFont(pathInCStr, defaultSize)
+	if (font == nil) {
+		return fontAsset, TTFOpenFontError{ErrorMessage = sdl3.GetError()}
+	}
+
+	fontAsset.ID = hash
+	fontAsset.Path = strings.clone(path, g_AssetDatabase.Allocator) or_return // Clone the string in case the user delete the path string.
+	fontAsset.Data = font
+	g_AssetDatabase.Fonts[hash] = fontAsset
+	return fontAsset, nil
+}
+
+Assets_GetFont :: proc(
+	assetPathHash: AssetPathHash,
+) -> (
+	fontAsset: FontAsset,
+	err: GetAssetError,
+) {
+	if (g_AssetDatabase == nil) {
+		return fontAsset, NoGlobalAssetDatabaseError{}
+	}
+
+	asset, isLoaded := g_AssetDatabase.Fonts[assetPathHash]
+	if (isLoaded) {
+		return asset, nil
+	}
+
+	return fontAsset, NotLoadedError{}
+}
+
+Assets_UnloadFont :: proc {
+	Assets_UnloadFontFromGlobalAssetDatabase,
+	Assets_UnloadFontFromAssetDatabase,
+}
+
+Assets_UnloadFontFromGlobalAssetDatabase :: proc(assetPathHash: AssetPathHash) {
+	if (g_AssetDatabase == nil) {
+		return
+	}
+
+	Assets_UnloadFontFromAssetDatabase(g_AssetDatabase, assetPathHash)
+}
+
+Assets_UnloadFontFromAssetDatabase :: proc(
+	assetDatabase: ^AssetDatabase,
+	assetPathHash: AssetPathHash,
+) {
+	asset, isLoaded := g_AssetDatabase.Fonts[assetPathHash]
+	if (!isLoaded) {
+		return
+	}
+
+	delete(asset.Path, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
+	ttf.CloseFont(asset.Data)
+}
+
+Assets_HashString :: proc(path: string) -> AssetPathHash {
+	return cast(AssetPathHash)hash.murmur32(transmute([]byte)path)
+}

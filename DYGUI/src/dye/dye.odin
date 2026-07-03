@@ -19,7 +19,6 @@ EngineMemory :: struct {
 	Input:              Input,
 	ClearColor:         [4]u8,
 	GUIContext:         ^dygui.GUIContext,
-	Fonts:              [dynamic]^ttf.Font,
 	TextEngine:         ^ttf.TextEngine,
 	Ticks:              u64,
 	TicksLastUpdate:    u64,
@@ -97,6 +96,8 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 		sdl3.Log(sdl3.GetError())
 		return false
 	}
+
+	Assets_CreateAssetDatabase()
 
 	engineMemory.GUIContext = dygui.CreateContext()
 	engineMemory.GUIContext.Canvas = {
@@ -203,22 +204,7 @@ OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventF
 @(private)
 renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 	renderer := engineMemory.MainRenderer
-	fonts := engineMemory.Fonts
 	textEngine := engineMemory.TextEngine
-
-	{
-		font := fonts[0]
-
-		currentFontSize := ttf.GetFontSize(font)
-		ttf.SetFontSize(font, 10)
-
-		textContentInCStr := strings.clone_to_cstring("Dummy", context.temp_allocator)
-
-		ttfText: ^ttf.Text = ttf.CreateText(textEngine, font, textContentInCStr, 0)
-		setColorResult := ttf.SetTextColor(ttfText, 255, 0, 0, 255)
-		defer ttf.DestroyText(ttfText)
-		result := ttf.DrawRendererText(ttfText, 100, 200)
-	}
 
 	frame := &dygui.GetState().Frame
 	for i := 0; i < frame.NumberOfDrawCommands; i += 1 {
@@ -254,10 +240,8 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 				sdl3.RenderFillRect(renderer, &rect)
 			}
 		case dygui.TextDrawData:
-			if drawData.FontConfig.FontId >= cast(u16)len(engineMemory.Fonts) {
-				break
-			}
-			font := fonts[drawData.FontConfig.FontId]
+			fontAsset := Assets_GetFont(cast(AssetPathHash)drawData.FontConfig.FontId) or_break
+			font := fontAsset.Data
 			currentFontSize := ttf.GetFontSize(font)
 			targetMeasureFontSize := cast(f32)drawData.FontConfig.FontSize
 			needToChangeFontSize: bool = currentFontSize != targetMeasureFontSize
@@ -321,14 +305,12 @@ FreeEngine :: proc(engineMemory: ^EngineMemory) {
 
 	result := sdl3.StopTextInput(engineMemory.MainWindow)
 
-	for i := 0; i < len(engineMemory.Fonts); i += 1 {
-		ttf.CloseFont(engineMemory.Fonts[i])
-	}
-	delete(engineMemory.Fonts)
-
 	dygui.FreeContext(engineMemory.GUIContext)
 
+	Assets_ReleaseAssetDatabase()
+
 	ttf.DestroyGPUTextEngine(engineMemory.TextEngine)
+	ttf.Quit()
 
 	if (engineMemory.GPUDevice != nil) {
 		sdl3.ReleaseWindowFromGPUDevice(engineMemory.GPUDevice, engineMemory.MainWindow)
@@ -342,30 +324,18 @@ FreeEngine :: proc(engineMemory: ^EngineMemory) {
 	free(engineMemory)
 }
 
-LoadFont :: proc(engineMemory: ^EngineMemory, fontPath: cstring, defaultSize: f32) -> int {
-	font := ttf.OpenFont(fontPath, defaultSize)
-	if font == nil {
-		sdl3.Log("Failed to load ttf font file: ", fontPath)
-		return -1
-	}
-
-	append(&engineMemory.Fonts, font)
-	return len(engineMemory.Fonts) - 1
-}
-
 @(private)
 measureText :: proc(
 	textContent: string,
 	fontConfig: dygui.FontConfig,
 	userData: rawptr,
 ) -> dygui.Dimensions {
-	engineMemory := cast(^EngineMemory)userData
-
-	if fontConfig.FontId >= cast(u16)len(engineMemory.Fonts) {
+	fontAsset, err := Assets_GetFont(cast(AssetPathHash)fontConfig.FontId)
+	if (err != nil) {
 		return {0, 0}
 	}
 
-	font := engineMemory.Fonts[fontConfig.FontId]
+	font := fontAsset.Data
 	currentFontSize := ttf.GetFontSize(font)
 	targetMeasureFontSize := cast(f32)fontConfig.FontSize
 
