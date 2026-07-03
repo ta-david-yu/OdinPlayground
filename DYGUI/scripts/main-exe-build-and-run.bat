@@ -27,8 +27,13 @@ odin build src\main.odin -file %DEBUGFLAG% -out:%OUTDIR%\%WORKSPACE_CALLSITE%.ex
 copy "extern\SDL3.dll" "%OUTDIR%\" /Y >nul
 copy "extern\SDL3_ttf.dll" "%OUTDIR%\" /Y >nul
 
-:: Copy the whole /assets/ folder into the output folder (creating it if it doesn't exist)
-xcopy "assets" "%OUTDIR%\assets" /E /I /Y >nul
+:: Build Asset Copy Watcher
+
+set "ASSET_COPY_OUT=build\copy-asset.exe"
+odin build asset-copy\copy_assets_on_change.odin -file -out:%ASSET_COPY_OUT%
+
+:: Start the asset copier without blocking; /D preserves this call site's working folder.
+start "Asset Copy Watcher" /D "%CD%" "%ASSET_COPY_OUT%" "assets" "%OUTDIR%\assets"
 
 :: Run. First we want to enter the exe folder to make sure the working folder is the same.
 pushd "%OUTDIR%"

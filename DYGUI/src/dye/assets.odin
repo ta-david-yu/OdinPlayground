@@ -25,6 +25,12 @@ FontAsset :: struct {
 	Data:             ^ttf.Font,
 }
 
+ShaderAsset :: struct {}
+
+Assets_GetOrLoadShader :: proc() {
+
+}
+
 Assets_GetGlobalAssetDatabase :: proc() -> ^AssetDatabase {
 	return g_AssetDatabase
 }

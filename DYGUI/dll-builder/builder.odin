@@ -36,6 +36,9 @@ main :: proc() {
 	for file in #load_directory("../src/dye/gui") {
 		append(&filesToWatch, DirectoryFileInfo{File = file, Directory = "./src/dye/gui"})
 	}
+	for file in #load_directory("../src/dye/prof") {
+		append(&filesToWatch, DirectoryFileInfo{File = file, Directory = "./src/dye/prof"})
+	}
 
 	fileTimestamps: []time.Time = make([]time.Time, len(filesToWatch))
 	defer delete(fileTimestamps)
