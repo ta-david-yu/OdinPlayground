@@ -1,7 +1,9 @@
 package dye
 
 import "base:runtime"
+import hm "core:container/handle_map"
 import "core:encoding/json"
+import "core:fmt"
 import "core:hash"
 import "core:os"
 import "core:slice"
@@ -11,35 +13,46 @@ import "vendor:sdl3/ttf"
 
 g_AssetDatabase: ^AssetDatabase = nil
 
-AssetID :: distinct u32
+AssetHash :: distinct u32
+
+AssetType :: enum {
+	Font,
+	GraphicsPipeline,
+}
+
+AssetHandle :: struct {
+	using _:  hm.Handle64,
+	Type:     AssetType,
+	PathHash: AssetHash,
+}
 
 AssetDatabase :: struct {
 	GPUDevice:                        ^sdl3.GPUDevice,
 	MainWindowSwapchainTextureFormat: sdl3.GPUTextureFormat,
 	Allocator:                        runtime.Allocator,
-	Fonts:                            map[AssetID]FontAsset,
-	GraphicsPipelines:                map[AssetID]GraphicsPipelineAsset,
-}
-
-AssetDescriptor :: struct {
-	ID:    AssetID,
-	// A list of file paths that are associated with this asset.
-	// Normally an asset will only have one associated path but some have more (e.g., graphics pipeline)
-	Paths: [dynamic; 4]string,
+	AssetMap:                         map[AssetHash]AssetHandle,
+	Fonts:                            hm.Dynamic_Handle_Map(FontAsset, AssetHandle),
+	GraphicsPipelines:                hm.Dynamic_Handle_Map(GraphicsPipelineAsset, AssetHandle),
 }
 
 FontAsset :: struct {
-	using Descriptor: AssetDescriptor,
-	Font:             ^ttf.Font,
+	using handle: AssetHandle,
+	// A list of file paths that are associated with this asset.
+	// Normally an asset will only have one associated path but some have more (e.g., graphics pipeline)
+	Paths:        [dynamic; 4]string,
+	Font:         ^ttf.Font,
 	// The StreamIO to memory region that holds the font asset bytes.
-	AssetIO:          ^sdl3.IOStream,
+	AssetIO:      ^sdl3.IOStream,
 	// The font asset loaded into memory. We do this so ttf.OpenFont doesn't lock up the file, which prevent asset copying.
-	AssetBytes:       []byte,
+	AssetBytes:   []byte,
 }
 
 GraphicsPipelineAsset :: struct {
-	using Descriptor: AssetDescriptor,
-	Pipeline:         ^sdl3.GPUGraphicsPipeline,
+	using handle: AssetHandle,
+	// A list of file paths that are associated with this asset.
+	// Normally an asset will only have one associated path but some have more (e.g., graphics pipeline)
+	Paths:        [dynamic; 4]string,
+	Pipeline:     ^sdl3.GPUGraphicsPipeline,
 }
 
 ShaderIOInfo :: struct {
@@ -76,7 +89,10 @@ Assets_CreateAssetDatabase :: proc(
 	assetDatabase.GPUDevice = gpuDevice
 	assetDatabase.MainWindowSwapchainTextureFormat = windowSwapchainTextureFormat
 	assetDatabase.Allocator = allocator
-	assetDatabase.Fonts = make(map[AssetID]FontAsset, allocator)
+
+	assetDatabase.AssetMap = make(map[AssetHash]AssetHandle, allocator)
+	hm.dynamic_init(&assetDatabase.Fonts, allocator)
+	hm.dynamic_init(&assetDatabase.GraphicsPipelines, allocator)
 
 	if (setAsGlobal) {
 		Assets_SetGlobalAssetDatabase(assetDatabase)
@@ -96,20 +112,28 @@ Assets_ReleaseAssetDatabase :: proc(assetDatabase: ^AssetDatabase = nil) {
 
 	allocator := assetDatabase.Allocator
 
-	for key, value in assetDatabase.Fonts {
-		Assets_UnloadFont(assetDatabase, value.ID)
+	fontItr := hm.iterator_make(&assetDatabase.Fonts)
+	for asset, handle in hm.iterate(&fontItr) {
+		Assets_UnloadFont(assetDatabase, handle)
 	}
-	delete(assetDatabase.Fonts)
+	hm.dynamic_destroy(&assetDatabase.Fonts)
 
-	for key, value in assetDatabase.GraphicsPipelines {
-		Assets_UnloadGraphicsPipeline(assetDatabase, value.ID)
+	pipelineItr := hm.iterator_make(&assetDatabase.GraphicsPipelines)
+	for asset, handle in hm.iterate(&pipelineItr) {
+		Assets_UnloadGraphicsPipeline(assetDatabase, handle)
 	}
-	delete(assetDatabase.GraphicsPipelines)
+	hm.dynamic_destroy(&assetDatabase.GraphicsPipelines)
+
+	delete(assetDatabase.AssetMap)
 
 	free(assetDatabase, allocator)
 }
 
 NoGlobalAssetDatabaseError :: struct {}
+
+AssetTypeMismatchError :: struct {}
+
+AssetExpiredError :: struct {}
 
 TTFNotInitError :: struct {}
 
@@ -123,6 +147,8 @@ CreateShaderError :: struct {
 
 LoadAssetError :: union {
 	NoGlobalAssetDatabaseError,
+	AssetTypeMismatchError,
+	AssetExpiredError,
 	TTFNotInitError,
 	TTFOpenFontError,
 	os.Error,
@@ -136,6 +162,20 @@ NotLoadedError :: struct {}
 GetAssetError :: union {
 	NoGlobalAssetDatabaseError,
 	NotLoadedError,
+	AssetTypeMismatchError,
+}
+
+Assets_GetAssetHandleFromHash :: proc(assetHash: AssetHash) -> AssetHandle {
+	if (g_AssetDatabase == nil) {
+		return AssetHandle{}
+	}
+
+	handle, exist := g_AssetDatabase.AssetMap[assetHash]
+	if (!exist) {
+		return AssetHandle{}
+	}
+
+	return handle
 }
 
 Assets_GetOrLoadFont :: proc(
@@ -145,6 +185,8 @@ Assets_GetOrLoadFont :: proc(
 	fontAsset: FontAsset,
 	err: LoadAssetError,
 ) {
+	fontAsset.handle.Type = .Font
+
 	if (g_AssetDatabase == nil) {
 		return fontAsset, NoGlobalAssetDatabaseError{}
 	}
@@ -155,9 +197,18 @@ Assets_GetOrLoadFont :: proc(
 
 	hash := Assets_HashString(path)
 
-	asset, isLoaded := g_AssetDatabase.Fonts[hash]
+	assetHandle, isLoaded := g_AssetDatabase.AssetMap[hash]
 	if (isLoaded) {
-		return asset, nil
+		if (assetHandle.Type != .Font) {
+			return fontAsset, AssetTypeMismatchError{}
+		}
+
+		asset, result := hm.get(&g_AssetDatabase.Fonts, assetHandle)
+		if (!result) {
+			return fontAsset, AssetExpiredError{}
+		} else {
+			return asset^, nil
+		}
 	}
 
 	// The asset hasn't been loaded yet.
@@ -175,7 +226,7 @@ Assets_GetOrLoadFont :: proc(
 		return fontAsset, TTFOpenFontError{ErrorMessage = sdl3.GetError()}
 	}
 
-	fontAsset.ID = hash
+	fontAsset.handle.PathHash = hash
 	pathClone, pathCloneErr := strings.clone(path, g_AssetDatabase.Allocator) // Clone the string in case the user delete the path string.
 	if (pathCloneErr != nil) {
 		ttf.CloseFont(font)
@@ -187,18 +238,25 @@ Assets_GetOrLoadFont :: proc(
 	fontAsset.Font = font
 	fontAsset.AssetIO = fontIO
 	fontAsset.AssetBytes = fontBytes
-	g_AssetDatabase.Fonts[hash] = fontAsset
+
+	handle := hm.add(&g_AssetDatabase.Fonts, fontAsset)
+	g_AssetDatabase.AssetMap[hash] = handle
+
 	return fontAsset, nil
 }
 
-Assets_GetFont :: proc(id: AssetID) -> (fontAsset: FontAsset, err: GetAssetError) {
+Assets_GetFont :: proc(handle: AssetHandle) -> (fontAsset: FontAsset, err: GetAssetError) {
 	if (g_AssetDatabase == nil) {
 		return fontAsset, NoGlobalAssetDatabaseError{}
 	}
 
-	asset, isLoaded := g_AssetDatabase.Fonts[id]
-	if (isLoaded) {
-		return asset, nil
+	if (handle.Type != .Font) {
+		return fontAsset, AssetTypeMismatchError{}
+	}
+
+	asset, result := hm.get(&g_AssetDatabase.Fonts, handle)
+	if (result) {
+		return asset^, nil
 	}
 
 	return fontAsset, NotLoadedError{}
@@ -209,17 +267,21 @@ Assets_UnloadFont :: proc {
 	Assets_UnloadFontFromAssetDatabase,
 }
 
-Assets_UnloadFontFromGlobalAssetDatabase :: proc(id: AssetID) {
+Assets_UnloadFontFromGlobalAssetDatabase :: proc(handle: AssetHandle) {
 	if (g_AssetDatabase == nil) {
 		return
 	}
 
-	Assets_UnloadFontFromAssetDatabase(g_AssetDatabase, id)
+	Assets_UnloadFontFromAssetDatabase(g_AssetDatabase, handle)
 }
 
-Assets_UnloadFontFromAssetDatabase :: proc(assetDatabase: ^AssetDatabase, id: AssetID) {
-	asset, isLoaded := g_AssetDatabase.Fonts[id]
-	if (!isLoaded) {
+Assets_UnloadFontFromAssetDatabase :: proc(assetDatabase: ^AssetDatabase, handle: AssetHandle) {
+	if (handle.Type != .Font) {
+		return
+	}
+
+	asset, result := hm.get(&g_AssetDatabase.Fonts, handle)
+	if (!result) {
 		return
 	}
 
@@ -230,7 +292,8 @@ Assets_UnloadFontFromAssetDatabase :: proc(assetDatabase: ^AssetDatabase, id: As
 	sdl3.CloseIO(asset.AssetIO)
 	delete(asset.AssetBytes, g_AssetDatabase.Allocator)
 
-	delete_key(&assetDatabase.Fonts, id)
+	hm.remove(&g_AssetDatabase.Fonts, handle)
+	delete_key(&assetDatabase.AssetMap, handle.PathHash)
 }
 
 Assets_GetOrLoadGraphicsPipeline :: proc(
@@ -240,6 +303,9 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 	pipelineAsset: GraphicsPipelineAsset,
 	err: LoadAssetError,
 ) {
+	// TODO: add more parameters? or provide custom shader syntax to specify blend state, depth/stencil flags, target texture format etc
+	pipelineAsset.handle.Type = .GraphicsPipeline
+
 	if (g_AssetDatabase == nil) {
 		return pipelineAsset, NoGlobalAssetDatabaseError{}
 	}
@@ -250,9 +316,18 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 	) or_return
 	hash := Assets_HashString(concatedPathForHashing)
 
-	asset, isLoaded := g_AssetDatabase.GraphicsPipelines[hash]
+	assetHandle, isLoaded := g_AssetDatabase.AssetMap[hash]
 	if (isLoaded) {
-		return asset, nil
+		if (assetHandle.Type != .GraphicsPipeline) {
+			return pipelineAsset, AssetTypeMismatchError{}
+		}
+
+		asset, result := hm.get(&g_AssetDatabase.GraphicsPipelines, assetHandle)
+		if (!result) {
+			return pipelineAsset, AssetExpiredError{}
+		} else {
+			return asset^, nil
+		}
 	}
 
 	// The asset hasn't been loaded yet.
@@ -279,7 +354,7 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 			allocator = context.temp_allocator,
 		)
 		if (vertexInfoParseErr != nil) {
-			return asset, vertexInfoParseErr
+			return pipelineAsset, vertexInfoParseErr
 		}
 
 		slice.sort_by(vertexInfo.inputs, proc(a, b: ShaderIOInfo) -> bool {
@@ -318,7 +393,7 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 
 		vertexShader = sdl3.CreateGPUShader(g_AssetDatabase.GPUDevice, vertexCreateInfo)
 		if (vertexShader == nil) {
-			return asset, CreateShaderError{ErrorMessage = sdl3.GetError()}
+			return pipelineAsset, CreateShaderError{ErrorMessage = sdl3.GetError()}
 		}
 	}
 	defer sdl3.ReleaseGPUShader(g_AssetDatabase.GPUDevice, vertexShader)
@@ -343,7 +418,7 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 			allocator = context.temp_allocator,
 		)
 		if (fragmentInfoParseErr != nil) {
-			return asset, fragmentInfoParseErr
+			return pipelineAsset, fragmentInfoParseErr
 		}
 
 		fragmentCreateInfo: sdl3.GPUShaderCreateInfo = {
@@ -360,7 +435,7 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 
 		fragmentShader = sdl3.CreateGPUShader(g_AssetDatabase.GPUDevice, fragmentCreateInfo)
 		if (fragmentShader == nil) {
-			return asset, CreateShaderError{ErrorMessage = sdl3.GetError()}
+			return pipelineAsset, CreateShaderError{ErrorMessage = sdl3.GetError()}
 		}
 	}
 	defer sdl3.ReleaseGPUShader(g_AssetDatabase.GPUDevice, fragmentShader)
@@ -402,35 +477,41 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 
 	pipeline := sdl3.CreateGPUGraphicsPipeline(g_AssetDatabase.GPUDevice, pipelineCreateInfo)
 	if (pipeline == nil) {
-		return asset, CreateShaderError{ErrorMessage = sdl3.GetError()}
+		return pipelineAsset, CreateShaderError{ErrorMessage = sdl3.GetError()}
 	}
 
-	pipelineAsset.ID = hash
-	pipelineAsset.Paths = {
+	pipelineAsset.handle.PathHash = hash
+
+	append(
+		&pipelineAsset.Paths,
 		strings.clone(vertexPath, g_AssetDatabase.Allocator),
 		strings.clone(fragmentPath, g_AssetDatabase.Allocator),
-	}
+	)
 	pipelineAsset.Pipeline = pipeline
 
-	g_AssetDatabase.GraphicsPipelines[hash] = pipelineAsset
+	handle := hm.add(&g_AssetDatabase.GraphicsPipelines, pipelineAsset)
+	g_AssetDatabase.AssetMap[hash] = handle
 
 	return pipelineAsset, nil
 }
 
 Assets_GetGraphicsPipeline :: proc(
-	id: AssetID,
+	handle: AssetHandle,
 ) -> (
 	pipelineAsset: GraphicsPipelineAsset,
 	err: GetAssetError,
 ) {
-
 	if (g_AssetDatabase == nil) {
 		return pipelineAsset, NoGlobalAssetDatabaseError{}
 	}
 
-	asset, isLoaded := g_AssetDatabase.GraphicsPipelines[id]
-	if (isLoaded) {
-		return asset, nil
+	if (handle.Type != .GraphicsPipeline) {
+		return pipelineAsset, AssetTypeMismatchError{}
+	}
+
+	asset, result := hm.get(&g_AssetDatabase.GraphicsPipelines, handle)
+	if (result) {
+		return asset^, nil
 	}
 
 	return pipelineAsset, NotLoadedError{}
@@ -441,20 +522,24 @@ Assets_UnloadGraphicsPipeline :: proc {
 	Assets_UnloadGraphicsPipelineFromAssetDatabase,
 }
 
-Assets_UnloadGraphicsPipelineFromGlobalAssetDatabase :: proc(id: AssetID) {
+Assets_UnloadGraphicsPipelineFromGlobalAssetDatabase :: proc(handle: AssetHandle) {
 	if (g_AssetDatabase == nil) {
 		return
 	}
 
-	Assets_UnloadGraphicsPipelineFromAssetDatabase(g_AssetDatabase, id)
+	Assets_UnloadGraphicsPipelineFromAssetDatabase(g_AssetDatabase, handle)
 }
 
 Assets_UnloadGraphicsPipelineFromAssetDatabase :: proc(
 	assetDatabase: ^AssetDatabase,
-	id: AssetID,
+	handle: AssetHandle,
 ) {
-	asset, isLoaded := g_AssetDatabase.GraphicsPipelines[id]
-	if (!isLoaded) {
+	if (handle.Type != .GraphicsPipeline) {
+		return
+	}
+
+	asset, result := hm.get(&g_AssetDatabase.GraphicsPipelines, handle)
+	if (!result) {
 		return
 	}
 
@@ -463,11 +548,12 @@ Assets_UnloadGraphicsPipelineFromAssetDatabase :: proc(
 	}
 	sdl3.ReleaseGPUGraphicsPipeline(g_AssetDatabase.GPUDevice, asset.Pipeline)
 
-	delete_key(&assetDatabase.GraphicsPipelines, id)
+	hm.remove(&g_AssetDatabase.GraphicsPipelines, handle)
+	delete_key(&assetDatabase.AssetMap, handle.PathHash)
 }
 
-Assets_HashString :: proc(path: string) -> AssetID {
-	return cast(AssetID)hash.murmur32(transmute([]byte)path)
+Assets_HashString :: proc(path: string) -> AssetHash {
+	return cast(AssetHash)hash.murmur32(transmute([]byte)path)
 }
 
 Assets_ParseShaderVertexElementFormatFromString :: proc(

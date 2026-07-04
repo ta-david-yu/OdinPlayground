@@ -32,14 +32,15 @@ Entity :: struct {
 }
 
 GameMemory :: struct {
-	TitleTextString: [dynamic]rune,
-	ButtonString:    [dynamic]rune,
-	Entities:        hm.Dynamic_Handle_Map(Entity, EntityHandle),
-	NextSpawnTimer:  f32,
-	ChineseFont:     dye.AssetDescriptor,
-	EnglishFont:     dye.AssetDescriptor,
-	VertexBuffer:    ^sdl3.GPUBuffer,
-	TransferBuffer:  ^sdl3.GPUTransferBuffer,
+	TitleTextString:  [dynamic]rune,
+	ButtonString:     [dynamic]rune,
+	Entities:         hm.Dynamic_Handle_Map(Entity, EntityHandle),
+	NextSpawnTimer:   f32,
+	ChineseFont:      dye.AssetHandle,
+	EnglishFont:      dye.AssetHandle,
+	GraphicsPipeline: dye.AssetHandle,
+	VertexBuffer:     ^sdl3.GPUBuffer,
+	TransferBuffer:   ^sdl3.GPUTransferBuffer,
 }
 
 OnAfterInitEngineSystems :: proc() {
@@ -48,7 +49,9 @@ OnAfterInitEngineSystems :: proc() {
 	g_Memory.Game.EnglishFont, _ = dye.Assets_GetOrLoadFont("assets/fonts/m6x11plus.ttf", 36)
 	g_Memory.Game.ChineseFont, _ = dye.Assets_GetOrLoadFont("assets/fonts/Cubic_11.ttf", 33)
 
-	dygui.SetMainFontConfig({FontId = cast(dygui.ID)g_Memory.Game.EnglishFont.ID, FontSize = 18})
+	dygui.SetMainFontConfig(
+		{FontId = cast(dygui.ID)g_Memory.Game.EnglishFont.PathHash, FontSize = 18},
+	)
 
 	style := dygui.GetStyle()
 	style.Colors.Text = {0, 0, 0, 255}
@@ -146,12 +149,14 @@ OnAfterInitEngineSystems :: proc() {
 		}
 	}
 
-	asset, err := dye.Assets_GetOrLoadGraphicsPipeline(
+	assetHandle, err := dye.Assets_GetOrLoadGraphicsPipeline(
 		"assets/shaders/vertex.vert.spv",
 		"assets/shaders/fragment.frag.spv",
 	)
 
-	dye.Assets_UnloadGraphicsPipeline(asset.ID)
+	g_Memory.Game.GraphicsPipeline = assetHandle
+
+	hm.dynamic_init(&g_Memory.Game.Entities, context.allocator)
 }
 
 OnUpdate :: proc(deltaTime: f32) {
@@ -198,7 +203,9 @@ OnImGui :: proc(deltaTime: f32) {
 	style := dygui.GetStyle()
 	style.Variables.Button.InnerBorderThickness = 2
 
-	dygui.PushFontConfig({FontId = cast(dygui.ID)g_Memory.Game.ChineseFont.ID, FontSize = 22}) // Set font Id for chinese.
+	dygui.PushFontConfig(
+		{FontId = cast(dygui.ID)g_Memory.Game.ChineseFont.PathHash, FontSize = 22},
+	) // Set font Id for chinese.
 
 	dygui.SetNexItemSize({150, 0})
 	if (dygui.Button("改顏色", {400, 300})) {

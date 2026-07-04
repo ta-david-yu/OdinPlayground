@@ -19,6 +19,7 @@ EngineMemory :: struct {
 	Input:              Input,
 	ClearColor:         [4]u8,
 	GUIContext:         ^dygui.GUIContext,
+	AssetDatabase:      ^AssetDatabase,
 	TextEngine:         ^ttf.TextEngine,
 	Ticks:              u64,
 	TicksLastUpdate:    u64,
@@ -93,7 +94,7 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 	}
 
 	format := sdl3.GetGPUSwapchainTextureFormat(engineMemory.GPUDevice, engineMemory.MainWindow)
-	Assets_CreateAssetDatabase(engineMemory.GPUDevice, format)
+	engineMemory.AssetDatabase = Assets_CreateAssetDatabase(engineMemory.GPUDevice, format)
 
 	engineMemory.GUIContext = dygui.CreateContext()
 	engineMemory.GUIContext.Canvas = {
@@ -115,6 +116,7 @@ InitEngineSystems :: proc(engineMemory: ^EngineMemory) -> bool {
 OnHotReload :: proc(engineMemory: ^EngineMemory) {
 	dygui.SetContextAsGlobal(engineMemory.GUIContext)
 	dygui.SetMeasureTextFunction(measureText, engineMemory)
+	Assets_SetGlobalAssetDatabase(engineMemory.AssetDatabase)
 }
 
 OnEngineUpdate :: proc(engineMemory: ^EngineMemory, eventFunctions: EngineEventFunctions) {
@@ -236,7 +238,10 @@ renderImGuiCommands :: proc(engineMemory: ^EngineMemory) {
 				sdl3.RenderFillRect(renderer, &rect)
 			}
 		case dygui.TextDrawData:
-			fontAsset := Assets_GetFont(cast(AssetID)drawData.FontConfig.FontId) or_break
+			fontAssetHandle := Assets_GetAssetHandleFromHash(
+				cast(AssetHash)drawData.FontConfig.FontId,
+			)
+			fontAsset := Assets_GetFont(fontAssetHandle) or_break
 			font := fontAsset.Font
 			currentFontSize := ttf.GetFontSize(font)
 			targetMeasureFontSize := cast(f32)drawData.FontConfig.FontSize
@@ -326,7 +331,8 @@ measureText :: proc(
 	fontConfig: dygui.FontConfig,
 	userData: rawptr,
 ) -> dygui.Dimensions {
-	fontAsset, err := Assets_GetFont(cast(AssetID)fontConfig.FontId)
+	fontAssetHandle := Assets_GetAssetHandleFromHash(cast(AssetHash)fontConfig.FontId)
+	fontAsset, err := Assets_GetFont(fontAssetHandle)
 	if (err != nil) {
 		return {0, 0}
 	}
