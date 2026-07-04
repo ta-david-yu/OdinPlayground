@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "Build-Debug",
+            "name": "Debug",
+            "program": "${workspaceFolder}/build/debug/${workspaceFolderBasename}.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/build/debug"
+        }
+    ]
+}

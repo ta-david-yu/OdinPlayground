@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Hot-Reload Debug",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "echo Running DYGUI...",
+            "preLaunchTask": "run hotreload debug"
+        }
+    ]
+}

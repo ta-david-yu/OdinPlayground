@@ -1,0 +1,29 @@
+{
+    "version": "2.0.0",
+    "command": "",
+    "args": [],
+    "tasks": [
+        {
+            "label": "mkdir-debug",
+            "type": "shell",
+            "command": "cmd",
+            "args": [
+                "/C",
+                "if not exist .\\build\\debug mkdir .\\build\\debug"
+            ]
+        },
+        {
+            "label": "build-debug",
+            "type": "shell",
+            "command": "odin build src/main -debug -out:build/debug/${workspaceFolderBasename}.exe",
+            "group": "build"
+        },
+        {
+            "label": "Build-Debug",
+            "dependsOn": [
+                "mkdir-debug",
+                "build-debug"
+            ]
+        }
+    ]
+}
