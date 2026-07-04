@@ -27,6 +27,7 @@ g_Api: AppAPI = {}
 g_LibraryExtension :: ".dll"
 g_LibraryPath :: "app"
 
+// Tracking allocator with hot reloading design based on Karl's video: https://youtu.be/dg6qogN8kIE
 resetAndPrintTrackingAllocator :: proc(allocator: ^mem.Tracking_Allocator) -> bool {
 	err := false
 	if len(allocator.allocation_map) > 0 {
