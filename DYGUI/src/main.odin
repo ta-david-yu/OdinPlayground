@@ -1,5 +1,6 @@
 package main
 
+import "core:c/libc"
 import "core:dynlib"
 import "core:fmt"
 import "core:mem"
@@ -26,22 +27,24 @@ g_Api: AppAPI = {}
 g_LibraryExtension :: ".dll"
 g_LibraryPath :: "app"
 
+resetAndPrintTrackingAllocator :: proc(allocator: ^mem.Tracking_Allocator) -> bool {
+	err := false
+	if len(allocator.allocation_map) > 0 {
+		fmt.eprintf("=== %v allocations not freed: ===\n", len(allocator.allocation_map))
+		for _, entry in allocator.allocation_map {
+			fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
+		}
+		err = true
+	}
+	mem.tracking_allocator_clear(allocator)
+	return err
+}
 
 main :: proc() {
 	when ODIN_DEBUG {
 		track: mem.Tracking_Allocator
 		mem.tracking_allocator_init(&track, context.allocator)
 		context.allocator = mem.tracking_allocator(&track)
-
-		defer {
-			if len(track.allocation_map) > 0 {
-				fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
-				for _, entry in track.allocation_map {
-					fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
-				}
-			}
-			mem.tracking_allocator_destroy(&track)
-		}
 	}
 
 	apiVersion := 0
@@ -59,6 +62,19 @@ main :: proc() {
 	counter := 0
 	for {
 		api.OneLoop()
+
+		when ODIN_DEBUG {
+			if (len(track.bad_free_array) > 0) {
+				for b in track.bad_free_array {
+					fmt.eprintf("- Bad free at: %v\n", b.location)
+				}
+
+				libc.getchar()
+				panic("Bad free detected")
+			}
+		}
+
+
 		if api.ShouldExitUpdateLoop() {
 			break
 		}
@@ -68,8 +84,10 @@ main :: proc() {
 			newAPI, newAPIResult := LoadAppAPI(g_LibraryPath, apiVersion, "App_")
 			if newAPIResult {
 				fmt.printfln("Resetting Application...")
-
 				api.Shutdown()
+				when ODIN_DEBUG {
+					resetAndPrintTrackingAllocator(&track)
+				}
 
 				// Unload the old library
 				if UnloadAppAPI(api) {
@@ -132,6 +150,14 @@ main :: proc() {
 	}
 
 	api.Shutdown()
+
+	when ODIN_DEBUG {
+		if resetAndPrintTrackingAllocator(&track) {
+			fmt.eprintln("Enter to continue...")
+			libc.getchar()
+		}
+	}
+
 	if UnloadAppAPI(api) {
 		dllPathToRemove := fmt.tprintf(
 			"{0}_{1}{2}",
