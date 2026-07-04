@@ -153,6 +153,7 @@ OnAfterInitEngineSystems :: proc() {
 		"assets/shaders/vertex.vert.spv",
 		"assets/shaders/fragment.frag.spv",
 	)
+	assert(err == nil)
 
 	g_Memory.Game.GraphicsPipeline = assetHandle
 
@@ -296,6 +297,24 @@ OnRender :: proc(deltaTime: f32) {
 			1,
 			nil,
 		)
+
+		graphicsPipeline, err := dye.Assets_GetGraphicsPipeline(g_Memory.Game.GraphicsPipeline)
+		assert(err == nil)
+
+		sdl3.BindGPUGraphicsPipeline(renderPass, graphicsPipeline.Pipeline)
+
+		bufferBindings: [1]sdl3.GPUBufferBinding = {
+			{buffer = g_Memory.Game.VertexBuffer, offset = 0},
+		}
+
+		sdl3.BindGPUVertexBuffers(renderPass, 0, raw_data(bufferBindings[:]), 1)
+
+		UniformBuffer :: struct {
+			time: f32,
+		}
+		uniform: UniformBuffer = {}
+		sdl3.PushGPUFragmentUniformData(commandBuffer, 0, &uniform, size_of(UniformBuffer))
+		sdl3.DrawGPUPrimitives(renderPass, 3, 1, 0, 0)
 
 		sdl3.EndGPURenderPass(renderPass)
 	}

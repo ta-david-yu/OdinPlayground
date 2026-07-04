@@ -240,6 +240,8 @@ Assets_GetOrLoadFont :: proc(
 	fontAsset.AssetBytes = fontBytes
 
 	handle := hm.add(&g_AssetDatabase.Fonts, fontAsset)
+
+	fontAsset.handle = handle
 	g_AssetDatabase.AssetMap[hash] = handle
 
 	return fontAsset, nil
@@ -490,6 +492,8 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 	pipelineAsset.Pipeline = pipeline
 
 	handle := hm.add(&g_AssetDatabase.GraphicsPipelines, pipelineAsset)
+
+	pipelineAsset.handle = handle
 	g_AssetDatabase.AssetMap[hash] = handle
 
 	return pipelineAsset, nil
