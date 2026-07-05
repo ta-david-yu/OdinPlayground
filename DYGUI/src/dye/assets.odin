@@ -3,7 +3,6 @@ package dye
 import "base:runtime"
 import hm "core:container/handle_map"
 import "core:encoding/json"
-import "core:fmt"
 import "core:hash"
 import "core:os"
 import "core:slice"
@@ -37,9 +36,7 @@ AssetDatabase :: struct {
 
 FontAsset :: struct {
 	using handle: AssetHandle,
-	// A list of file paths that are associated with this asset.
-	// Normally an asset will only have one associated path but some have more (e.g., graphics pipeline)
-	Paths:        [dynamic; 4]string,
+	Path:         string,
 	Font:         ^ttf.Font,
 	// The StreamIO to memory region that holds the font asset bytes.
 	AssetIO:      ^sdl3.IOStream,
@@ -48,11 +45,10 @@ FontAsset :: struct {
 }
 
 GraphicsPipelineAsset :: struct {
-	using handle: AssetHandle,
-	// A list of file paths that are associated with this asset.
-	// Normally an asset will only have one associated path but some have more (e.g., graphics pipeline)
-	Paths:        [dynamic; 4]string,
-	Pipeline:     ^sdl3.GPUGraphicsPipeline,
+	using handle:       AssetHandle,
+	VertexShaderPath:   string,
+	FragmentShaderPath: string,
+	Pipeline:           ^sdl3.GPUGraphicsPipeline,
 }
 
 ShaderIOInfo :: struct {
@@ -157,6 +153,11 @@ LoadAssetError :: union {
 	CreateShaderError,
 }
 
+ReloadAssetError :: union {
+	NotLoadedError,
+	LoadAssetError,
+}
+
 NotLoadedError :: struct {}
 
 GetAssetError :: union {
@@ -234,7 +235,7 @@ Assets_GetOrLoadFont :: proc(
 		delete(fontBytes, g_AssetDatabase.Allocator)
 		return fontAsset, pathCloneErr
 	}
-	append(&fontAsset.Paths, pathClone)
+	fontAsset.Path = pathClone
 	fontAsset.Font = font
 	fontAsset.AssetIO = fontIO
 	fontAsset.AssetBytes = fontBytes
@@ -287,9 +288,7 @@ Assets_UnloadFontFromAssetDatabase :: proc(assetDatabase: ^AssetDatabase, handle
 		return
 	}
 
-	for path in asset.Paths {
-		delete(path, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
-	}
+	delete(asset.Path, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
 	ttf.CloseFont(asset.Font)
 	sdl3.CloseIO(asset.AssetIO)
 	delete(asset.AssetBytes, g_AssetDatabase.Allocator)
@@ -484,11 +483,8 @@ Assets_GetOrLoadGraphicsPipeline :: proc(
 
 	pipelineAsset.handle.PathHash = hash
 
-	append(
-		&pipelineAsset.Paths,
-		strings.clone(vertexPath, g_AssetDatabase.Allocator),
-		strings.clone(fragmentPath, g_AssetDatabase.Allocator),
-	)
+	pipelineAsset.VertexShaderPath = strings.clone(vertexPath, g_AssetDatabase.Allocator)
+	pipelineAsset.FragmentShaderPath = strings.clone(fragmentPath, g_AssetDatabase.Allocator)
 	pipelineAsset.Pipeline = pipeline
 
 	handle := hm.add(&g_AssetDatabase.GraphicsPipelines, pipelineAsset)
@@ -547,13 +543,50 @@ Assets_UnloadGraphicsPipelineFromAssetDatabase :: proc(
 		return
 	}
 
-	for path in asset.Paths {
-		delete(path, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
-	}
+	delete(asset.VertexShaderPath, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
+	delete(asset.FragmentShaderPath, g_AssetDatabase.Allocator) // We cloned the path string when loading the asset, delete it here.
 	sdl3.ReleaseGPUGraphicsPipeline(g_AssetDatabase.GPUDevice, asset.Pipeline)
 
 	hm.remove(&g_AssetDatabase.GraphicsPipelines, handle)
 	delete_key(&assetDatabase.AssetMap, handle.PathHash)
+}
+
+Assets_ReloadAsset :: proc(
+	handle: AssetHandle,
+) -> (
+	newHandle: AssetHandle,
+	err: ReloadAssetError,
+) {
+	if (g_AssetDatabase == nil) {
+		return newHandle, NoGlobalAssetDatabaseError{}
+	}
+
+	handle := handle
+	switch handle.Type {
+	case .Font:
+		asset, result := hm.get(&g_AssetDatabase.Fonts, handle)
+		if (!result) {
+			// The asset is not loaded at all, return the empty handle.
+			return newHandle, NotLoadedError{}
+		}
+
+		pathCache := strings.clone(asset.Path, context.temp_allocator)
+		fontSizeCache := ttf.GetFontSize(asset.Font)
+		Assets_UnloadFont(handle)
+		return Assets_GetOrLoadFont(pathCache, fontSizeCache)
+	case .GraphicsPipeline:
+		asset, result := hm.get(&g_AssetDatabase.GraphicsPipelines, handle)
+		if (!result) {
+			// The asset is not loaded at all, return the empty handle.
+			return newHandle, NotLoadedError{}
+		}
+
+		vertexPathCache := strings.clone(asset.VertexShaderPath, context.temp_allocator)
+		fragmentPathCache := strings.clone(asset.FragmentShaderPath, context.temp_allocator)
+		Assets_UnloadGraphicsPipeline(handle)
+		return Assets_GetOrLoadGraphicsPipeline(vertexPathCache, fragmentPathCache)
+	}
+	return newHandle, AssetTypeMismatchError{}
 }
 
 Assets_HashString :: proc(path: string) -> AssetHash {

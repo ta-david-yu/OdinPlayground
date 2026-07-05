@@ -166,6 +166,12 @@ OnUpdate :: proc(deltaTime: f32) {
 		append(&g_Memory.Game.ButtonString, text.Buffer[i])
 	}
 
+	// Reload graphics pipeline.
+	if dye.Input_IsMouseButton(&g_Memory.EngineMemory.Input, dye.MouseButton.Middle) {
+		newHandle, err := dye.Assets_ReloadAsset(g_Memory.Game.GraphicsPipeline)
+		g_Memory.Game.GraphicsPipeline = newHandle
+	}
+
 	// Update spawn timer.
 	if dye.Input_IsMouseButton(&g_Memory.EngineMemory.Input, dye.MouseButton.Right) {
 		g_Memory.Game.NextSpawnTimer -= deltaTime
