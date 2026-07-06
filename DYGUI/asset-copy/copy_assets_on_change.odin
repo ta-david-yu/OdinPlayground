@@ -25,7 +25,11 @@ main :: proc() {
 	dstFolder := os.args[2]
 	srcFolderRoot, srcFolderRootErr := os.get_absolute_path(srcFolder, context.allocator)
 	if srcFolderRootErr != nil {
-		fmt.eprintfln("[asset-copy] Failed resolving source folder %s: %v", srcFolder, srcFolderRootErr)
+		fmt.eprintfln(
+			"[asset-copy] Failed resolving source folder %s: %v",
+			srcFolder,
+			srcFolderRootErr,
+		)
 		return
 	}
 
@@ -203,7 +207,9 @@ CheckIfAssetPathIsShaderAndCompile :: proc(dstAssetPath: string) {
 			{"compilation from ", dstAssetPath, " to ", outputPath},
 			context.temp_allocator,
 		)
-		ExecProcessCommand(compileCommand[:], compileActionName)
+		if (!ExecProcessCommand(compileCommand[:], compileActionName)) {
+			return
+		}
 
 		// Also generate shader reflect json, so we get some metadata info from the shader which can be used for shader asset loading process.
 		reflectCommand := [?]string {
@@ -225,11 +231,13 @@ CheckIfAssetPathIsShaderAndCompile :: proc(dstAssetPath: string) {
 			{"shader info generation of ", dstAssetPath, " to ", jsonOutputPath},
 			context.temp_allocator,
 		)
-		ExecProcessCommand(reflectCommand[:], generateShaderInfoActionName)
+		if (!ExecProcessCommand(reflectCommand[:], generateShaderInfoActionName)) {
+			return
+		}
 	}
 }
 
-ExecProcessCommand :: proc(command: []string, actionName: string) {
+ExecProcessCommand :: proc(command: []string, actionName: string) -> bool {
 	processState, stdout, stderr, execErr := os.process_exec(
 		os.Process_Desc{command = command},
 		context.temp_allocator,
@@ -242,7 +250,9 @@ ExecProcessCommand :: proc(command: []string, actionName: string) {
 		if len(stderr) > 0 {
 			fmt.println(string(stderr))
 		}
+		return false
 	} else {
 		fmt.println("[asset-copy] Completed", actionName)
+		return true
 	}
 }

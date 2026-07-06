@@ -18,9 +18,9 @@ SPAWN_PER_MINUTES :: 512
 
 
 vertices: [3]dye.Vertex = {
-	{{0, 0.5, 0.0}, {1, 0, 0, 1}},
-	{{-0.5, -0.5, 0.0}, {1, 1, 0, 1}},
-	{{0.5, -0.5, 0.0}, {1, 0, 1, 1}},
+	{{0, 0.5, -5.0}, {1, 0, 0, 1}},
+	{{-0.5, -0.5, -5.0}, {1, 1, 0, 1}},
+	{{0.5, -0.5, -5.0}, {1, 0, 1, 1}},
 }
 
 EntityHandle :: distinct hm.Handle64
@@ -288,41 +288,74 @@ OnRender :: proc(deltaTime: f32) {
 			sdl3.Log("Failed to acquire GPU swapchain texture: %s", sdl3.GetError())
 		}
 
-		clearFColor := cast(sdl3.FColor)(cast([4]f32)g_Memory.EngineMemory.ClearColor / 255.0)
-		windoColorTargetInfo: sdl3.GPUColorTargetInfo = {
-			texture     = windowSwapChainTexture,
-			cycle       = true,
-			load_op     = sdl3.GPULoadOp.CLEAR,
-			store_op    = sdl3.GPUStoreOp.STORE,
-			clear_color = clearFColor,
+		isWindowMinimizedPotentially := windowSwapChainTexture == nil
+		if (!isWindowMinimizedPotentially) {
+			// We dont want to render anything if the texture is nil: https://wiki.libsdl.org/SDL3/SDL_WaitAndAcquireGPUSwapchainTexture
+			clearFColor := cast(sdl3.FColor)(cast([4]f32)g_Memory.EngineMemory.ClearColor / 255.0)
+			windoColorTargetInfo: sdl3.GPUColorTargetInfo = {
+				texture     = windowSwapChainTexture,
+				cycle       = true,
+				load_op     = sdl3.GPULoadOp.CLEAR,
+				store_op    = sdl3.GPUStoreOp.STORE,
+				clear_color = clearFColor,
+			}
+
+			renderPass: ^sdl3.GPURenderPass = sdl3.BeginGPURenderPass(
+				commandBuffer,
+				&windoColorTargetInfo,
+				1,
+				nil,
+			)
+
+			graphicsPipeline, err := dye.Assets_GetGraphicsPipeline(g_Memory.Game.GraphicsPipeline)
+			assert(err == nil)
+
+			sdl3.BindGPUGraphicsPipeline(renderPass, graphicsPipeline.Pipeline)
+
+			bufferBindings: [1]sdl3.GPUBufferBinding = {
+				{buffer = g_Memory.Game.VertexBuffer, offset = 0},
+			}
+
+			sdl3.BindGPUVertexBuffers(renderPass, 0, raw_data(bufferBindings[:]), 1)
+
+			VertexUniformBuffer :: struct #packed {
+				MVP: matrix[4, 4]f32,
+			}
+			FragmentUniformBuffer :: struct #packed {
+				Time: f32,
+			}
+
+			windowSize: [2]i32
+			sdl3.GetWindowSize(g_Memory.EngineMemory.MainWindow, &windowSize.x, &windowSize.y)
+
+			projectionMatrix := linalg.matrix4_perspective_f32(
+				70,
+				f32(windowSize.x) / f32(windowSize.y),
+				0.0001,
+				1000,
+			)
+			vertexUniform: VertexUniformBuffer = {
+				MVP = projectionMatrix,
+			}
+			fragmentUniform: FragmentUniformBuffer = {
+				Time = cast(f32)sdl3.GetTicksNS() / 1e9,
+			}
+			sdl3.PushGPUVertexUniformData(
+				commandBuffer,
+				0,
+				&vertexUniform,
+				size_of(VertexUniformBuffer),
+			)
+			sdl3.PushGPUFragmentUniformData(
+				commandBuffer,
+				0,
+				&fragmentUniform,
+				size_of(FragmentUniformBuffer),
+			)
+			sdl3.DrawGPUPrimitives(renderPass, 3, 1, 0, 0)
+
+			sdl3.EndGPURenderPass(renderPass)
 		}
-
-		renderPass: ^sdl3.GPURenderPass = sdl3.BeginGPURenderPass(
-			commandBuffer,
-			&windoColorTargetInfo,
-			1,
-			nil,
-		)
-
-		graphicsPipeline, err := dye.Assets_GetGraphicsPipeline(g_Memory.Game.GraphicsPipeline)
-		assert(err == nil)
-
-		sdl3.BindGPUGraphicsPipeline(renderPass, graphicsPipeline.Pipeline)
-
-		bufferBindings: [1]sdl3.GPUBufferBinding = {
-			{buffer = g_Memory.Game.VertexBuffer, offset = 0},
-		}
-
-		sdl3.BindGPUVertexBuffers(renderPass, 0, raw_data(bufferBindings[:]), 1)
-
-		UniformBuffer :: struct {
-			time: f32,
-		}
-		uniform: UniformBuffer = {}
-		sdl3.PushGPUFragmentUniformData(commandBuffer, 0, &uniform, size_of(UniformBuffer))
-		sdl3.DrawGPUPrimitives(renderPass, 3, 1, 0, 0)
-
-		sdl3.EndGPURenderPass(renderPass)
 	}
 
 	if !sdl3.SubmitGPUCommandBuffer(commandBuffer) {

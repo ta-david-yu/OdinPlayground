@@ -1,3 +1,8 @@
+cbuffer Local : register(b0, space1) 
+{
+	float4x4 MVP;
+}
+
 struct VertexInput
 {
 	float3 Position : POSITION0;
@@ -13,7 +18,7 @@ struct VertexOutput
 VertexOutput main(VertexInput input)
 {
 	VertexOutput output;
-	output.Position = float4(input.Position, 1.0);
+	output.Position = mul(MVP, float4(input.Position, 1.0));
 	output.Color = input.Color;
 	return output;
 }
